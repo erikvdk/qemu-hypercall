@@ -4689,6 +4689,10 @@ if test "$rdma" = "yes" ; then
   echo "CONFIG_RDMA=y" >> $config_host_mak
 fi
 
+if test "$hypercall" = "yes" ; then
+  echo "CONFIG_HYPERCALL=y" >> $config_host_mak
+fi
+
 # Hold two types of flag:
 #   CONFIG_THREAD_SETNAME_BYTHREAD  - we've got a way of setting the name on
 #                                     a thread we have a handle to
