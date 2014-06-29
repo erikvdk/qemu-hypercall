@@ -48,6 +48,10 @@
 #include "hw/i386/apic_internal.h"
 #endif
 
+#ifdef CONFIG_HYPERCALL
+#include "hypercall.h"
+#endif
+
 
 /* Cache topology CPUID constants: */
 
@@ -2060,6 +2064,13 @@ void cpu_x86_cpuid(CPUX86State *env, uint32_t index, uint32_t count,
 {
     X86CPU *cpu = x86_env_get_cpu(env);
     CPUState *cs = CPU(cpu);
+
+#ifdef CONFIG_HYPERCALL
+    if (index == HYPERCALL_CPUID_INDEX &&
+	hypercall_execute(env, count, eax, ebx, ecx, edx)) {
+	return;
+    }
+#endif
 
     /* test if maximum index reached */
     if (index & 0x80000000) {

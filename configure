@@ -324,6 +324,7 @@ tpm="no"
 libssh2=""
 vhdx=""
 quorum="no"
+hypercall="no"
 
 # parse CC options first
 for opt do
@@ -1086,6 +1087,10 @@ for opt do
   --disable-quorum) quorum="no"
   ;;
   --enable-quorum) quorum="yes"
+  ;;
+  --disable-hypercall) hypercall="no"
+  ;;
+  --enable-hypercall) hypercall="yes"
   ;;
   *) echo "ERROR: unknown option $opt"; show_help="yes"
   ;;
@@ -4183,6 +4188,7 @@ echo "vhdx              $vhdx"
 echo "Quorum            $quorum"
 echo "lzo support       $lzo"
 echo "snappy support    $snappy"
+echo "hypercall support $hypercall"
 
 if test "$sdl_too_old" = "yes"; then
 echo "-> Your SDL version is too old - please upgrade to have SDL support"
