@@ -2058,6 +2058,9 @@ static void main_loop(void)
 static void version(void)
 {
     printf("QEMU emulator version " QEMU_VERSION QEMU_PKGVERSION ", Copyright (c) 2003-2008 Fabrice Bellard\n");
+#ifdef CONFIG_HYPERCALL
+    printf("with hypercall support\n");
+#end
 }
 
 static void help(int exitcode)
