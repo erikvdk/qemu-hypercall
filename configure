@@ -1355,6 +1355,8 @@ Advanced options (experts only):
   --enable-vhdx            enable support for the Microsoft VHDX image format
   --disable-quorum         disable quorum block filter support
   --enable-quorum          enable quorum block filter support
+  --disable-hypercall      disable hypercall support
+  --enable-hypercall       enable hypercall support
 
 NOTE: The object files are built at the place where configure is launched
 EOF
