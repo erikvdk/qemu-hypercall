@@ -1,5 +1,5 @@
-CFLAGS+= -g -O1 -Wall -Werror
-LDFLAGS+= -g
+CFLAGS+= -g -O1 -Wall -Werror -m32
+LDFLAGS+= -g -m32
 
 all: example
 
