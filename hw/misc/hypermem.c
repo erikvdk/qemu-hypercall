@@ -213,7 +213,7 @@ static void hypermem_mem_write_internal(HyperMemState *state,
 
 #define HYPERMEM_ENTRY_BYTES ((1 << sizeof(hypermem_entry_t)) - 1)
 
-static int64_t hypermem_mem_read(void *opaque, hwaddr addr,
+static uint64_t hypermem_mem_read(void *opaque, hwaddr addr,
                                   unsigned size)
 {
     hwaddr baseaddr = addr - addr % sizeof(hypermem_entry_t);
@@ -256,7 +256,7 @@ static int64_t hypermem_mem_read(void *opaque, hwaddr addr,
 
 static void hypermem_mem_write(void *opaque,
                                hwaddr addr,
-                               int64_t mem_value,
+                               uint64_t mem_value,
                                uint32_t size)
 {
     hwaddr baseaddr = addr - addr % sizeof(hypermem_entry_t);
