@@ -27,6 +27,13 @@ typedef struct HyperMemState
     MemoryRegion io;
     unsigned session_next;
     HyperMemSessionState sessions[HYPERMEM_ENTRIES];
+
+    hwaddr pending_read_addr;
+    hypermem_entry_t pending_read_value;
+    unsigned pending_read_bytes;
+    hwaddr pending_write_addr;
+    hypermem_entry_t pending_write_value;
+    unsigned pending_write_bytes;
 } HyperMemState;
 
 static void hypermem_session_set_active(HyperMemSessionState *session)
@@ -68,19 +75,19 @@ static hwaddr hypermem_session_get_address(unsigned session_id)
     return session_id ? (HYPERMEM_BASEADDR + session_id * sizeof(hypermem_entry_t)) : 0;
 }
 
-static uint64_t command_nop_read(HyperMemSessionState *session)
+static hypermem_entry_t command_nop_read(HyperMemSessionState *session)
 {
     session->command = 0;
     return HYPERCALL_NOP_REPLY;
 }
 
-static void command_nop_write(HyperMemSessionState *session, uint64_t value)
+static void command_nop_write(HyperMemSessionState *session, hypermem_entry_t value)
 {
     fprintf(stderr, "hypermem: unexpected write during NOP command "
             "(value=0x%llx)\n", (long long) value);
 }
 
-static uint64_t handle_session_read(HyperMemSessionState *session)
+static hypermem_entry_t handle_session_read(HyperMemSessionState *session)
 {
     switch (session->command) {
     case HYPERMEM_COMMAND_NOP: return command_nop_read(session);
@@ -95,7 +102,7 @@ static uint64_t handle_session_read(HyperMemSessionState *session)
     return 0;
 }
 
-static void handle_session_write(HyperMemSessionState *session, uint64_t value)
+static void handle_session_write(HyperMemSessionState *session, hypermem_entry_t value)
 {
     switch (session->command) {
     case HYPERMEM_COMMAND_NOP: command_nop_write(session, value); return;
@@ -112,16 +119,15 @@ static void handle_session_write(HyperMemSessionState *session, uint64_t value)
     }
 }
 
-static uint64_t hypermem_mem_read(void *opaque, hwaddr addr,
-                                  unsigned size)
+static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
+                                                   hwaddr addr)
 {
     hwaddr entry;
     unsigned session_id;
-    HyperMemState *state = opaque;
-    uint64_t value;
+    hypermem_entry_t value;
 
 #ifdef HYPERMEM_DEBUG
-    printf("hypermem: read; addr=0x%lx, size=0x%x\n", (long) addr, size);
+    printf("hypermem: read_internal; addr=0x%lx\n", (long) addr);
 #endif
 
     /* verify address */
@@ -150,23 +156,21 @@ static uint64_t hypermem_mem_read(void *opaque, hwaddr addr,
     }
     value = handle_session_read(&state->sessions[entry]);
 #ifdef HYPERMEM_DEBUG
-    printf("hypermem: read value 0x%llx\n", (long long) value);
+    printf("hypermem: read_internal value 0x%lx\n", (long) value);
 #endif
     return value;
 }
 
-static void hypermem_mem_write(void *opaque,
-                               hwaddr addr,
-                               uint64_t mem_value,
-                               uint32_t size)
+static void hypermem_mem_write_internal(HyperMemState *state,
+                                        hwaddr addr,
+                                        hypermem_entry_t mem_value)
 {
     hwaddr entry;
     unsigned session_id;
-    HyperMemState *state = opaque;
 
 #ifdef HYPERMEM_DEBUG
-    printf("hypermem: write; addr=0x%lx, value=0x%llx, size=0x%lx\n",
-	(long) addr, (long long) mem_value, (long) size);
+    printf("hypermem: write_internal; addr=0x%lx, value=0x%lx\n",
+	(long) addr, (long) mem_value);
 #endif
 
     /* verify address */
@@ -205,6 +209,97 @@ static void hypermem_mem_write(void *opaque,
 	return;
     }
     handle_session_write(&state->sessions[entry], mem_value);
+}
+
+#define HYPERMEM_ENTRY_BYTES ((1 << sizeof(hypermem_entry_t)) - 1)
+
+static int64_t hypermem_mem_read(void *opaque, hwaddr addr,
+                                  unsigned size)
+{
+    hwaddr baseaddr = addr - addr % sizeof(hypermem_entry_t);
+    unsigned bytemask = ((1 << size) - 1) << (addr - baseaddr);
+    HyperMemState *state = opaque;
+    int64_t value;
+
+#ifdef HYPERMEM_DEBUG
+    printf("hypermem: read; addr=0x%lx, size=0x%x\n", (long) addr, size);
+#endif
+
+    /* we're assuming that QEMU splits up reads that are either unaligned
+     * or too large
+     */
+    assert(addr - baseaddr + size <= sizeof(hypermem_entry_t));
+
+    /* perform a real read if we don't have all the necessary bytes */
+    if (state->pending_read_addr != baseaddr ||
+	(state->pending_read_bytes & bytemask) != bytemask) {
+	if (state->pending_read_bytes) {
+	    fprintf(stderr, "hypermem: partial read at 0x%lx\n",
+		(long) state->pending_read_addr);
+	}
+	state->pending_read_addr = baseaddr;
+	state->pending_read_bytes = HYPERMEM_ENTRY_BYTES;
+	state->pending_read_value = hypermem_mem_read_internal(state, baseaddr);
+    }
+
+    /* select the part requested and mark it not pending */
+    value = 0;
+    memcpy(&value, (char *) &state->pending_read_value + (addr - baseaddr),
+           size);
+    state->pending_read_bytes &= ~bytemask;
+
+#ifdef HYPERMEM_DEBUG
+    printf("hypermem: read value 0x%llx\n", (long long) value);
+#endif
+    return value;
+}
+
+static void hypermem_mem_write(void *opaque,
+                               hwaddr addr,
+                               int64_t mem_value,
+                               uint32_t size)
+{
+    hwaddr baseaddr = addr - addr % sizeof(hypermem_entry_t);
+    unsigned bytemask = ((1 << size) - 1) << (addr - baseaddr);
+    HyperMemState *state = opaque;
+    int64_t value;
+
+#ifdef HYPERMEM_DEBUG
+    printf("hypermem: write; addr=0x%lx, value=0x%lx, size=0x%lx\n",
+	(long) addr, (long) mem_value, (long) size);
+#endif
+
+    /* we're assuming that QEMU splits up writes that are either unaligned
+     * or too large
+     */
+    assert(addr - baseaddr + size <= sizeof(hypermem_entry_t));
+
+    /* clean up when writing at another location or when overwriting previously
+     * written bytes that did not fill up a word
+     */
+    if (state->pending_write_addr != baseaddr ||
+	(state->pending_write_bytes & bytemask)) {
+	if (state->pending_write_bytes) {
+	    fprintf(stderr, "hypermem: partial write at 0x%lx ignored\n",
+		(long) state->pending_write_addr);
+	}
+	state->pending_write_addr = baseaddr;
+	state->pending_write_bytes = 0;
+	state->pending_write_value = 0;
+    }
+
+    /* store the part requested and mark it pending */
+    memcpy((char *) &state->pending_write_value + (addr - baseaddr), &value,
+           size);
+    state->pending_write_bytes |= bytemask;
+
+    /* perform the actual write when we have a full word */
+    if ((state->pending_write_bytes & HYPERMEM_ENTRY_BYTES) ==
+        HYPERMEM_ENTRY_BYTES) {
+	hypermem_mem_write_internal(state, state->pending_write_addr,
+	                            state->pending_write_value);
+	state->pending_write_bytes = 0;
+    }
 }
 
 const MemoryRegionOps hypermem_mem_ops = {
