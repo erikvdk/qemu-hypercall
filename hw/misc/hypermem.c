@@ -31,9 +31,13 @@
 #define HYPERMEM_DEBUG
 
 typedef uint32_t hypermem_entry_t;
-#define HYPERMEM_BASEADDR	0xc0000
+/* I don't know how to tell the OS a memory region is reserved so I'll just
+ * steal part of the video memory and hope it won't be used
+ */
+#define HYPERMEM_BASEADDR	0xb7000
 #define HYPERMEM_SIZE		0x01000
 #define HYPERMEM_ENTRIES	(HYPERMEM_SIZE / sizeof(hypermem_entry_t))
+#define HYPERMEM_PRIO		3 /* 1 and 2 used by video memory */
 
 #define HYPERMEM_COMMAND_NOP	1
 
@@ -104,7 +108,7 @@ static void hypermem_realizefn(DeviceState *dev, Error **errp)
     memory_region_set_flush_coalesced(&s->io);
     memory_region_add_subregion_overlap(isa_address_space(isadev),
                                         isa_mem_base + HYPERMEM_BASEADDR,
-                                        &s->io, 1);
+                                        &s->io, HYPERMEM_PRIO);
     memory_region_set_coalescing(&s->io);
 }
 
