@@ -64,6 +64,7 @@ static uint64_t hypermem_mem_read(void *opaque, hwaddr addr,
     printf("hypermem: read; addr=0x%lx, size=0x%x\n", (long) addr, size);
 #endif
     /* TODO: implement */
+    return 0;
 }
 
 static void hypermem_mem_write(void *opaque,
@@ -73,7 +74,7 @@ static void hypermem_mem_write(void *opaque,
 {
 #ifdef HYPERMEM_DEBUG
     printf("hypermem: write; addr=0x%lx, value=0x%llx, size=0x%lx\n",
-	(long) addr, (long long) value, (long) size);
+	(long) addr, (long long) mem_value, (long) size);
 #endif
     /* TODO: implement */
 }
