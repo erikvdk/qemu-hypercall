@@ -211,8 +211,10 @@ const MemoryRegionOps hypermem_mem_ops = {
     .read = hypermem_mem_read,
     .write = hypermem_mem_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
+    .valid = {
+        .max_access_size = sizeof(hypermem_entry_t),
+    },
     .impl = {
-        .min_access_size = sizeof(hypermem_entry_t),
         .max_access_size = sizeof(hypermem_entry_t),
     },
 };
