@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "hypermem.h"
 
 int main(int argc, char **argv) {
