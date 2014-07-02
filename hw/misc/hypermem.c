@@ -118,6 +118,7 @@ static uint64_t hypermem_mem_read(void *opaque, hwaddr addr,
     hwaddr entry;
     unsigned session_id;
     HyperMemState *state = opaque;
+    uint64_t value;
 
 #ifdef HYPERMEM_DEBUG
     printf("hypermem: read; addr=0x%lx, size=0x%x\n", (long) addr, size);
@@ -147,7 +148,11 @@ static uint64_t hypermem_mem_read(void *opaque, hwaddr addr,
 	        entry);
 	return;
     }
-    return handle_session_read(&state->sessions[entry]);
+    value = handle_session_read(&state->sessions[entry]);
+#ifdef HYPERMEM_DEBUG
+    printf("hypermem: read value 0x%llx\n", (long long) value);
+#endif
+    return value;
 }
 
 static void hypermem_mem_write(void *opaque,
