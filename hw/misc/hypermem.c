@@ -58,8 +58,8 @@ static unsigned hypermem_session_from_address(hwaddr addr)
 {
     unsigned session_id;
 
-    if (hwaddr < HYPERMEM_BASEADDR) return 0;
-    session_id = (hwaddr - HYPERMEM_BASEADDR) / sizeof(hypermem_entry_t);
+    if (addr < HYPERMEM_BASEADDR) return 0;
+    session_id = (addr - HYPERMEM_BASEADDR) / sizeof(hypermem_entry_t);
     return (session_id < HYPERMEM_ENTRIES) ? session_id : 0;
 }
 
@@ -74,7 +74,7 @@ static uint64_t command_nop_read(HyperMemSessionState *session)
     return HYPERCALL_NOP_REPLY;
 }
 
-static void handle_session_write(HyperMemSessionState *session, uint64_t value)
+static void command_nop_write(HyperMemSessionState *session, uint64_t value)
 {
     fprintf(stderr, "hypermem: unexpected write during NOP command "
             "(value=0x%llx)\n", (long long) value);
@@ -104,7 +104,7 @@ static void handle_session_write(HyperMemSessionState *session, uint64_t value)
     if (session->command) {
 	fprintf(stderr, "hypermem: write for invalid command %d\n",
 	        session->command);
-    } else (!value) {
+    } else if (!value) {
 	fprintf(stderr, "hypermem: command not specified\n");
     } else {
 	session->command = value;
@@ -129,7 +129,7 @@ static uint64_t hypermem_mem_read(void *opaque, hwaddr addr,
     if (entry >= HYPERMEM_ENTRIES) {
 	fprintf(stderr, "hypermem: read from invalid address 0x%lx\n",
 	        (long) addr);
-	return;
+	return 0;
     }
 
     /* reads from base set up sessions */
@@ -145,8 +145,8 @@ static uint64_t hypermem_mem_read(void *opaque, hwaddr addr,
     /* other reads are in sessions */
     if (!state->sessions[entry].active) {
 	fprintf(stderr, "hypermem: attempt to read in inactive session %u\n",
-	        entry);
-	return;
+	        (unsigned) entry);
+	return 0;
     }
     value = handle_session_read(&state->sessions[entry]);
 #ifdef HYPERMEM_DEBUG
@@ -161,7 +161,6 @@ static void hypermem_mem_write(void *opaque,
                                uint32_t size)
 {
     hwaddr entry;
-    uint64_t session_addr;
     unsigned session_id;
     HyperMemState *state = opaque;
 
@@ -180,20 +179,20 @@ static void hypermem_mem_write(void *opaque,
 
     /* writes to base tear down sessions */
     if (entry == 0) {
-        session_id = hypermem_session_from_address(value);
+        session_id = hypermem_session_from_address(mem_value);
 	if (!session_id) {
 	    fprintf(stderr, "hypermem: attempt to tear down session for "
-	            "invalid address 0x%lx\n", (long) value);
+	            "invalid address 0x%lx\n", (long) mem_value);
 	    return;
 	}
 	if (!state->sessions[session_id].active) {
 	    fprintf(stderr, "hypermem: attempt to tear down inactive session "
-	            "%u for address 0x%lx\n", session_id, (long) value);
+	            "%u for address 0x%lx\n", session_id, (long) mem_value);
 	    return;
 	}
 #ifdef HYPERMEM_DEBUG
 	printf("hypermem: tearing down session %u at 0x%lx\n",
-	       session_id, (long) value);
+	       session_id, (long) mem_value);
 #endif
 	state->sessions[session_id].active = 0;
 	return;
@@ -202,10 +201,10 @@ static void hypermem_mem_write(void *opaque,
     /* other writes are in sessions */
     if (!state->sessions[entry].active) {
 	fprintf(stderr, "hypermem: attempt to write in inactive session %u\n",
-	        entry);
+	        (unsigned) entry);
 	return;
     }
-    handle_session_write(&state->sessions[entry], value);
+    handle_session_write(&state->sessions[entry], mem_value);
 }
 
 const MemoryRegionOps hypermem_mem_ops = {
