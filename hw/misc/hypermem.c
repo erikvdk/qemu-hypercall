@@ -84,6 +84,21 @@ static void logprintf(HyperMemState *state, const char *fmt, ...) {
     va_end(args);
 }
 
+static void logprint_vstr(HyperMemState *state, hypermem_entry_t addr,
+                          hypermem_entry_t size) {
+    char c;
+    X86CPU *cpu = X86_CPU(current_cpu);
+    int user = cpu->env.segs[R_CS].selector & 3;
+
+    while (size > 0) {
+        c = user ? cpu_ldb_user(addr) : cpu_ldb_kernel(addr);
+	fprintf(state->logfile, "%c", c);
+	addr++;
+	size--;
+    }
+    if (state->flushlog) fflush(state->logfile);
+}
+
 static void hypermem_session_set_active(HyperMemSessionState *session)
 {
     memset(session, 0, sizeof(HyperMemSessionState));
@@ -178,9 +193,9 @@ static void command_print_write(HyperMemState *state,
 	session->state++;
 	break;
     default:
-	/* TODO: read the string itself */
-	logprintf(state, "print ptr=0x%lx len=0x%lx\n",
-	    (long) session->command_state.print.string_ptr, (long) value);
+	logprintf("print ");
+	logprint_vstr(state, session->command_state.print.string_ptr, value);
+	logprintf(state, "\n");
 	session->command = 0;
 	break;
     }
