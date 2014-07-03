@@ -262,7 +262,6 @@ static void hypermem_mem_write(void *opaque,
     hwaddr baseaddr = addr - addr % sizeof(hypermem_entry_t);
     unsigned bytemask = ((1 << size) - 1) << (addr - baseaddr);
     HyperMemState *state = opaque;
-    int64_t value;
 
 #ifdef HYPERMEM_DEBUG
     printf("hypermem: write; addr=0x%lx, value=0x%lx, size=0x%lx\n",
@@ -289,7 +288,7 @@ static void hypermem_mem_write(void *opaque,
     }
 
     /* store the part requested and mark it pending */
-    memcpy((char *) &state->pending_write_value + (addr - baseaddr), &value,
+    memcpy((char *) &state->pending_write_value + (addr - baseaddr), &mem_value,
            size);
     state->pending_write_bytes |= bytemask;
 
