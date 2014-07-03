@@ -73,3 +73,9 @@ int hypermem_nop(struct hypermem_session *session) {
 	hypermem_write(session, HYPERMEM_COMMAND_NOP);
 	return hypermem_read(session) == HYPERCALL_NOP_REPLY;
 }
+
+void hypermem_print(struct hypermem_session *session, const char *str) {
+	hypermem_write(session, HYPERMEM_COMMAND_PRINT);
+	hypermem_write(session, (hypermem_entry_t) str);
+	hypermem_write(session, strlen(str));
+}

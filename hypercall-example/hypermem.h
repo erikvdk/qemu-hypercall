@@ -14,5 +14,6 @@ void hypermem_disconnect(struct hypermem_session *session);
 void hypermem_edfi_context_set(struct hypermem_session *session, void *context);
 void hypermem_fault(struct hypermem_session *session, unsigned bbindex);
 int hypermem_nop(struct hypermem_session *session);
+void hypermem_print(struct hypermem_session *session, const char *str);
 
 #endif /* !defined(HYPERMEM_H) */
