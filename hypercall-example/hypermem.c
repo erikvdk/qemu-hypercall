@@ -59,6 +59,11 @@ void hypermem_disconnect(struct hypermem_session *session) {
 	}
 }
 
+void hypermem_fault(struct hypermem_session *session, unsigned bbindex) {
+	hypermem_write(session, HYPERMEM_COMMAND_FAULT);
+	hypermem_write(session, bbindex);
+}
+
 int hypermem_nop(struct hypermem_session *session) {
 	hypermem_write(session, HYPERMEM_COMMAND_NOP);
 	return hypermem_read(session) == HYPERCALL_NOP_REPLY;

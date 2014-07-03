@@ -11,6 +11,7 @@ struct hypermem_session {
 int hypermem_connect(struct hypermem_session *session);
 void hypermem_disconnect(struct hypermem_session *session);
 
+void hypermem_fault(struct hypermem_session *session, unsigned bbindex);
 int hypermem_nop(struct hypermem_session *session);
 
 #endif /* !defined(HYPERMEM_H) */
