@@ -59,6 +59,11 @@ void hypermem_disconnect(struct hypermem_session *session) {
 	}
 }
 
+void hypermem_edfi_context_set(struct hypermem_session *session, void *context) {
+	hypermem_write(session, HYPERMEM_COMMAND_EDFI_CONTEXT_SET);
+	hypermem_write(session, (hypermem_entry_t) context);
+}
+
 void hypermem_fault(struct hypermem_session *session, unsigned bbindex) {
 	hypermem_write(session, HYPERMEM_COMMAND_FAULT);
 	hypermem_write(session, bbindex);
