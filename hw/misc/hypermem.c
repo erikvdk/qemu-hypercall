@@ -313,10 +313,10 @@ static void hypermem_mem_write(void *opaque,
 
     /* find a pending operation that has these bytes available for reading */
     op = hypermem_find_pending_operation(state, 1, addr, size, &bytemask);
-    if (!op) return 0;
+    if (!op) return;
 
     /* set the part requested and mark it pending */
-    memcpy((char *) &op->value + (addr - op->baseaddr), &value, size);
+    memcpy((char *) &op->value + (addr - op->baseaddr), &mem_value, size);
     op->bytemask |= bytemask;
 
     /* perform a real write once we have all the necessary bytes */
