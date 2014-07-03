@@ -19,18 +19,18 @@
  * - the session is ended by writing the communication address
  *   to HYPERMEM_BASEADDR
  *
- * hypermem protocol - nop
- * - write command identifier HYPERMEM_COMMAND_NOP
- * - read back reply
-*  - if the reply is HYPERCALL_NOP_REPLY, the hypermem interface works
+ * hypermem protocol - edfi context set
+ * - write command identifier HYPERMEM_COMMAND_EDFI_CONTEXT_SET
+ * - write a pointer to the EDFI context (note: implicitly CR3 is stored as well)
  *
  * hypermem protocol - fault
  * - write command identifier HYPERMEM_COMMAND_FAULT
  * - write basic block index
  *
- * hypermem protocol - edfi context set
- * - write command identifier HYPERMEM_COMMAND_EDFI_CONTEXT_SET
- * - write a pointer to the EDFI context (note: implicitly CR3 is stored as well)
+ * hypermem protocol - nop
+ * - write command identifier HYPERMEM_COMMAND_NOP
+ * - read back reply
+*  - if the reply is HYPERCALL_NOP_REPLY, the hypermem interface works
  */
  
  #include <stdint.h>
