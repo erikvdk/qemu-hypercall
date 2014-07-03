@@ -36,12 +36,44 @@ typedef struct HyperMemState
 {
     ISADevice parent_obj;
 
+    /* properties */
+    const char *logpath;
+    bool flushlog;
+
+    /* QEMU objects */
     MemoryRegion io;
+
+    /* open handles */
+    FILE *logfile;
+
+    /* session state */
     unsigned session_next;
     HyperMemSessionState sessions[HYPERMEM_ENTRIES];
 
+    /* state for partial reads and writes */
     HyperMemPendingOperation pending[HYPERMEM_PENDING_MAX];
 } HyperMemState;
+
+static Property hypermem_props[] = {
+    DEFINE_PROP_STRING("logpath", HyperMemState, logpath),
+    DEFINE_PROP_BOOL("flushlog", USBDevice, flushlog, false),
+    DEFINE_PROP_END_OF_LIST()
+};
+
+static void logvprintf(HyperMemState *state, const char *fmt, va_list args) {
+    vfprintf(state->logfile, fmt, args);
+    if (state->flushlof) fflush(state->logfile);
+}
+
+static void logprintf(HyperMemState *state, const char *fmt, ...)
+    __attribute__ ((__format__ (__printf__, 2, 3)));
+
+static void logprintf(HyperMemState *state, const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    logvprintf(state, fmt, args);
+    va_end(args);
+}
 
 static void hypermem_session_set_active(HyperMemSessionState *session)
 {
@@ -82,22 +114,27 @@ static hwaddr hypermem_session_get_address(unsigned session_id)
     return session_id ? (HYPERMEM_BASEADDR + session_id * sizeof(hypermem_entry_t)) : 0;
 }
 
-static hypermem_entry_t command_nop_read(HyperMemSessionState *session)
+static hypermem_entry_t command_nop_read(HyperMemState *state,
+                                         HyperMemSessionState *session)
 {
+    logprintf(state, "nop\n");
     session->command = 0;
     return HYPERCALL_NOP_REPLY;
 }
 
-static void command_nop_write(HyperMemSessionState *session, hypermem_entry_t value)
+static void command_nop_write(HyperMemState *state,
+                              HyperMemSessionState *session,
+                              hypermem_entry_t value)
 {
     fprintf(stderr, "hypermem: unexpected write during NOP command "
             "(value=0x%llx)\n", (long long) value);
 }
 
-static hypermem_entry_t handle_session_read(HyperMemSessionState *session)
+static hypermem_entry_t handle_session_read(HyperMemState *state,
+                                            HyperMemSessionState *session)
 {
     switch (session->command) {
-    case HYPERMEM_COMMAND_NOP: return command_nop_read(session);
+    case HYPERMEM_COMMAND_NOP: return command_nop_read(state, session);
     }
 
     if (session->command) {
@@ -109,10 +146,12 @@ static hypermem_entry_t handle_session_read(HyperMemSessionState *session)
     return 0;
 }
 
-static void handle_session_write(HyperMemSessionState *session, hypermem_entry_t value)
+static void handle_session_write(HyperMemState *state,
+                                 HyperMemSessionState *session,
+                                 hypermem_entry_t value)
 {
     switch (session->command) {
-    case HYPERMEM_COMMAND_NOP: command_nop_write(session, value); return;
+    case HYPERMEM_COMMAND_NOP: command_nop_write(state, session, value); return;
     }
 
     if (session->command) {
@@ -161,7 +200,7 @@ static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
 	        (unsigned) entry);
 	return 0;
     }
-    value = handle_session_read(&state->sessions[entry]);
+    value = handle_session_read(state, &state->sessions[entry]);
 #ifdef HYPERMEM_DEBUG
     printf("hypermem: read_internal value 0x%lx\n", (long) value);
 #endif
@@ -215,7 +254,7 @@ static void hypermem_mem_write_internal(HyperMemState *state,
 	        (unsigned) entry);
 	return;
     }
-    handle_session_write(&state->sessions[entry], mem_value);
+    handle_session_write(state, &state->sessions[entry], mem_value);
 }
 
 #define HYPERMEM_ENTRY_BYTES ((1 << sizeof(hypermem_entry_t)) - 1)
@@ -343,6 +382,25 @@ static void hypermem_realizefn(DeviceState *dev, Error **errp)
     ISADevice *isadev = ISA_DEVICE(dev);
     HyperMemState *s = HYPERMEM(dev);
 
+    /* open log file */
+#ifdef HYPERMEM_DEBUG
+    if (s->logpath) {
+	printf("hypermem: log path \"%s\", %sflushing on every write\n",
+	    s->logpath, s->flushlog ? "" : "not ");
+    } else {
+	printf("hypermem: logging to stdout\n");
+    }
+#endif
+    if (s->logpath) {
+	s->logfile = fopen(s->logpath, "w");
+	if (!s->logfile) {
+		perror("hypermem: could not open log file");
+		exit(-1);
+	}
+    } else {
+	s->logfile = stdout;
+    }
+
     /* reserve memory area */
 #ifdef HYPERMEM_DEBUG
     printf("hypermem: realize; HYPERMEM_BASEADDR=0x%lx, HYPERMEM_SIZE=0x%lx, "
@@ -366,6 +424,7 @@ static void hypermem_class_initfn(ObjectClass *klass, void *data)
     printf("hypermem: class init\n");
 #endif
     dc->realize = hypermem_realizefn;
+    dc->props   = hypermem_props;
 }
 
 static const TypeInfo hypermem_info = {
