@@ -18,9 +18,16 @@
 #define HYPERMEM(obj) OBJECT_CHECK(HyperMemState, (obj), TYPE_HYPERMEM)
 
 typedef struct HyperMemSessionState {
-	int active;
-	int command;
-	int state;
+    int active;
+    int command;
+    int state;
+
+    /* command state */
+    union {
+	struct {
+	    hypermem_entry_t string_ptr;
+	} print;
+    } command_state;
 } HyperMemSessionState;
 
 typedef struct HyperMemPendingOperation {
@@ -161,6 +168,24 @@ static hypermem_entry_t command_nop_read(HyperMemState *state,
     return HYPERCALL_NOP_REPLY;
 }
 
+static void command_print_write(HyperMemState *state,
+                              HyperMemSessionState *session,
+                              hypermem_entry_t value)
+{
+    switch (session->state) {
+    case 0:
+	session->command_state.print.string_ptr = value;
+	session->state++;
+	break;
+    default:
+	/* TODO: read the string itself */
+	logprintf(state, "print ptr=0x%lx len=0x%lx\n",
+	    (long) session->command_state.print.string_ptr, (long) value);
+	session->command = 0;
+	break;
+    }
+}
+
 static hypermem_entry_t handle_session_read(HyperMemState *state,
                                             HyperMemSessionState *session)
 {
@@ -168,6 +193,7 @@ static hypermem_entry_t handle_session_read(HyperMemState *state,
     case HYPERMEM_COMMAND_EDFI_CONTEXT_SET: return command_bad_read(state, session);
     case HYPERMEM_COMMAND_FAULT: return command_bad_read(state, session);
     case HYPERMEM_COMMAND_NOP: return command_nop_read(state, session);
+    case HYPERMEM_COMMAND_PRINT: return command_bad_read(state, session);
     }
 
     if (session->command) {
@@ -187,6 +213,7 @@ static void handle_session_write(HyperMemState *state,
     case HYPERMEM_COMMAND_EDFI_CONTEXT_SET: command_edfi_context_set_write(state, session, value); return;
     case HYPERMEM_COMMAND_FAULT: command_fault_write(state, session, value); return;
     case HYPERMEM_COMMAND_NOP: command_bad_write(state, session, value); return;
+    case HYPERMEM_COMMAND_PRINT: command_bad_write(state, session, value); return;
     }
 
     if (session->command) {

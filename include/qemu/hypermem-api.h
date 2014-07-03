@@ -31,6 +31,11 @@
  * - write command identifier HYPERMEM_COMMAND_NOP
  * - read back reply
 *  - if the reply is HYPERCALL_NOP_REPLY, the hypermem interface works
+ *
+ * hypermem protocol - print
+ * - write command identifier HYPERMEM_COMMAND_PRINT
+ * - write a pointer to the string
+ * - write a length of the string in bytes, excluding terminator
  */
  
  #include <stdint.h>
@@ -45,6 +50,7 @@ typedef uint32_t hypermem_entry_t;
 #define HYPERMEM_COMMAND_NOP			1
 #define HYPERMEM_COMMAND_FAULT			2
 #define HYPERMEM_COMMAND_EDFI_CONTEXT_SET	3
+#define HYPERMEM_COMMAND_PRINT			4
 
 #define HYPERCALL_NOP_REPLY	0x4e6f7021
 
