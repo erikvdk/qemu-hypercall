@@ -27,6 +27,10 @@
  * hypermem protocol - fault
  * - write command identifier HYPERMEM_COMMAND_FAULT
  * - write basic block index
+ *
+ * hypermem protocol - edfi context set
+ * - write command identifier HYPERMEM_COMMAND_EDFI_CONTEXT_SET
+ * - write a pointer to the EDFI context (note: implicitly CR3 is stored as well)
  */
  
  #include <stdint.h>
@@ -38,8 +42,9 @@ typedef uint32_t hypermem_entry_t;
 #define HYPERMEM_BASEADDR	0xb7000
 #define HYPERMEM_SIZE		0x01000
 
-#define HYPERMEM_COMMAND_NOP	1
-#define HYPERMEM_COMMAND_FAULT	2
+#define HYPERMEM_COMMAND_NOP			1
+#define HYPERMEM_COMMAND_FAULT			2
+#define HYPERMEM_COMMAND_EDFI_CONTEXT_SET	3
 
 #define HYPERCALL_NOP_REPLY	0x4e6f7021
 

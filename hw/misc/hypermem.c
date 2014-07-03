@@ -6,6 +6,8 @@
 
 #include <qemu/hypermem-api.h>
 
+#include "hypermem-edfi.h"
+
 #define HYPERMEM_ENTRIES	(HYPERMEM_SIZE / sizeof(hypermem_entry_t))
 #define HYPERMEM_PRIO		3 /* 1 and 2 used by video memory */
 #define HYPERMEM_PENDING_MAX	HYPERMEM_ENTRIES
@@ -130,12 +132,17 @@ static void command_bad_write(HyperMemState *state,
             "(value=0x%llx)\n", session->command, (long long) value);
 }
 
-static hypermem_entry_t command_nop_read(HyperMemState *state,
-                                         HyperMemSessionState *session)
+static void command_edfi_context_set_write(HyperMemState *state,
+                              HyperMemSessionState *session,
+                              hypermem_entry_t value)
 {
-    logprintf(state, "nop\n");
+    X86CPU *cpu = X86_CPU(current_cpu);
+    logprintf(state, "edfi_context_set CR3=0x%llx context=0x%lx\n",
+              (long long) cpu->env.cr[3], (long) value);
+
+    /* TODO: store EDFI context and CR3 */
+	      
     session->command = 0;
-    return HYPERCALL_NOP_REPLY;
 }
 
 static void command_fault_write(HyperMemState *state,
@@ -146,12 +153,21 @@ static void command_fault_write(HyperMemState *state,
     session->command = 0;
 }
 
+static hypermem_entry_t command_nop_read(HyperMemState *state,
+                                         HyperMemSessionState *session)
+{
+    logprintf(state, "nop\n");
+    session->command = 0;
+    return HYPERCALL_NOP_REPLY;
+}
+
 static hypermem_entry_t handle_session_read(HyperMemState *state,
                                             HyperMemSessionState *session)
 {
     switch (session->command) {
-    case HYPERMEM_COMMAND_NOP: return command_nop_read(state, session);
+    case HYPERMEM_COMMAND_EDFI_CONTEXT_SET: return command_bad_read(state, session);
     case HYPERMEM_COMMAND_FAULT: return command_bad_read(state, session);
+    case HYPERMEM_COMMAND_NOP: return command_nop_read(state, session);
     }
 
     if (session->command) {
@@ -168,8 +184,9 @@ static void handle_session_write(HyperMemState *state,
                                  hypermem_entry_t value)
 {
     switch (session->command) {
-    case HYPERMEM_COMMAND_NOP: command_bad_write(state, session, value); return;
+    case HYPERMEM_COMMAND_EDFI_CONTEXT_SET: command_edfi_context_set_write(state, session, value); return;
     case HYPERMEM_COMMAND_FAULT: command_fault_write(state, session, value); return;
+    case HYPERMEM_COMMAND_NOP: command_bad_write(state, session, value); return;
     }
 
     if (session->command) {
