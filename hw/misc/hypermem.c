@@ -4,6 +4,9 @@
 #include "sysemu/kvm.h"
 #include "hw/qdev.h"
 
+#include "helper.h"
+#include "exec/softmmu_exec.h"
+
 #include <qemu/hypermem-api.h>
 
 #include "hypermem-edfi.h"
@@ -84,14 +87,14 @@ static void logprintf(HyperMemState *state, const char *fmt, ...) {
     va_end(args);
 }
 
-static void logprint_vstr(HyperMemState *state, hypermem_entry_t addr,
-                          hypermem_entry_t size) {
+static void logprint_vstr(HyperMemState *state, target_ulong addr,
+                          target_ulong size) {
     char c;
     X86CPU *cpu = X86_CPU(current_cpu);
     int user = cpu->env.segs[R_CS].selector & 3;
 
     while (size > 0) {
-        c = user ? cpu_ldb_user(addr) : cpu_ldb_kernel(addr);
+        c = user ? cpu_ldub_user(&cpu->env, addr) : cpu_ldub_kernel(&cpu->env, addr);
 	fprintf(state->logfile, "%c", c);
 	addr++;
 	size--;
@@ -193,7 +196,7 @@ static void command_print_write(HyperMemState *state,
 	session->state++;
 	break;
     default:
-	logprintf("print ");
+	logprintf(state, "print ");
 	logprint_vstr(state, session->command_state.print.string_ptr, value);
 	logprintf(state, "\n");
 	session->command = 0;
