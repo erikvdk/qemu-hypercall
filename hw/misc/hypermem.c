@@ -213,7 +213,7 @@ static void handle_session_write(HyperMemState *state,
     case HYPERMEM_COMMAND_EDFI_CONTEXT_SET: command_edfi_context_set_write(state, session, value); return;
     case HYPERMEM_COMMAND_FAULT: command_fault_write(state, session, value); return;
     case HYPERMEM_COMMAND_NOP: command_bad_write(state, session, value); return;
-    case HYPERMEM_COMMAND_PRINT: command_bad_write(state, session, value); return;
+    case HYPERMEM_COMMAND_PRINT: command_print_write(state, session, value); return;
     }
 
     if (session->command) {
