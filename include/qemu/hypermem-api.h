@@ -23,6 +23,10 @@
  * - write command identifier HYPERMEM_COMMAND_NOP
  * - read back reply
 *  - if the reply is HYPERCALL_NOP_REPLY, the hypermem interface works
+ *
+ * hypermem protocol - fault
+ * - write command identifier HYPERMEM_COMMAND_FAULT
+ * - write basic block index
  */
  
  #include <stdint.h>
@@ -35,6 +39,7 @@ typedef uint32_t hypermem_entry_t;
 #define HYPERMEM_SIZE		0x01000
 
 #define HYPERMEM_COMMAND_NOP	1
+#define HYPERMEM_COMMAND_FAULT	2
 
 #define HYPERCALL_NOP_REPLY	0x4e6f7021
 

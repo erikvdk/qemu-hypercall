@@ -114,6 +114,22 @@ static hwaddr hypermem_session_get_address(unsigned session_id)
     return session_id ? (HYPERMEM_BASEADDR + session_id * sizeof(hypermem_entry_t)) : 0;
 }
 
+static hypermem_entry_t command_bad_read(HyperMemState *state,
+                                         HyperMemSessionState *session)
+{
+    fprintf(stderr, "hypermem: unexpected read during command %d\n",
+            session->command);
+    return 0;
+}
+
+static void command_bad_write(HyperMemState *state,
+                              HyperMemSessionState *session,
+                              hypermem_entry_t value)
+{
+    fprintf(stderr, "hypermem: unexpected write during command %d "
+            "(value=0x%llx)\n", session->command, (long long) value);
+}
+
 static hypermem_entry_t command_nop_read(HyperMemState *state,
                                          HyperMemSessionState *session)
 {
@@ -122,12 +138,12 @@ static hypermem_entry_t command_nop_read(HyperMemState *state,
     return HYPERCALL_NOP_REPLY;
 }
 
-static void command_nop_write(HyperMemState *state,
+static void command_fault_write(HyperMemState *state,
                               HyperMemSessionState *session,
                               hypermem_entry_t value)
 {
-    fprintf(stderr, "hypermem: unexpected write during NOP command "
-            "(value=0x%llx)\n", (long long) value);
+    logprintf(state, "fault bbindex=0x%lx\n", (long) value);
+    session->command = 0;
 }
 
 static hypermem_entry_t handle_session_read(HyperMemState *state,
@@ -135,6 +151,7 @@ static hypermem_entry_t handle_session_read(HyperMemState *state,
 {
     switch (session->command) {
     case HYPERMEM_COMMAND_NOP: return command_nop_read(state, session);
+    case HYPERMEM_COMMAND_FAULT: return command_bad_read(state, session);
     }
 
     if (session->command) {
@@ -151,7 +168,8 @@ static void handle_session_write(HyperMemState *state,
                                  hypermem_entry_t value)
 {
     switch (session->command) {
-    case HYPERMEM_COMMAND_NOP: command_nop_write(state, session, value); return;
+    case HYPERMEM_COMMAND_NOP: command_bad_write(state, session, value); return;
+    case HYPERMEM_COMMAND_FAULT: command_fault_write(state, session, value); return;
     }
 
     if (session->command) {
