@@ -37,7 +37,7 @@ typedef struct HyperMemState
     ISADevice parent_obj;
 
     /* properties */
-    const char *logpath;
+    char *logpath;
     bool flushlog;
 
     /* QEMU objects */
@@ -56,13 +56,13 @@ typedef struct HyperMemState
 
 static Property hypermem_props[] = {
     DEFINE_PROP_STRING("logpath", HyperMemState, logpath),
-    DEFINE_PROP_BOOL("flushlog", USBDevice, flushlog, false),
+    DEFINE_PROP_BOOL("flushlog", HyperMemState, flushlog, false),
     DEFINE_PROP_END_OF_LIST()
 };
 
 static void logvprintf(HyperMemState *state, const char *fmt, va_list args) {
     vfprintf(state->logfile, fmt, args);
-    if (state->flushlof) fflush(state->logfile);
+    if (state->flushlog) fflush(state->logfile);
 }
 
 static void logprintf(HyperMemState *state, const char *fmt, ...)
