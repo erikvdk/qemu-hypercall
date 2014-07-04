@@ -91,8 +91,16 @@ static void logprint_vstr(HyperMemState *state, target_ulong addr,
                           target_ulong size) {
     uint8_t buf[1024];
     X86CPU *cpu = X86_CPU(current_cpu);
+#ifdef HYPERMEM_DEBUG
+    int i;
+#endif
     int len;
 
+#ifdef HYPERMEM_DEBUG
+    printf("hypermem: printing string at 0x%lx (virtual) with length %lx\n",
+	(long) addr, (long) size);
+    for (i = 0; i < sizeof(buf); i++) buf[i] = 0xDEADBEEF >> (i % 4);
+#endif
     while (size > 0) {
 	/* aligned access for cases where the buffer straddles a page boundary
 	 * and one of the pages is not available
@@ -100,10 +108,18 @@ static void logprint_vstr(HyperMemState *state, target_ulong addr,
 	len = sizeof(buf);
 	if (addr % sizeof(buf)) len -= addr % sizeof(buf);
 	if (len > size) len = size;
+#ifdef HYPERMEM_DEBUG
+	printf("hypermem: reading 0x%x bytes at 0x%lx\n", len, (long) addr);
+#endif
 	if (cpu_memory_rw_debug(CPU(cpu), addr, buf, len, 0) < 0) {
 	    fprintf(stderr, "hypermem: cannot access string at virtual "
 		    "address 0x%.lx\n", (long) addr);
 	} else {
+#ifdef HYPERMEM_DEBUG
+	    printf("hypermem: data: ");
+	    for (i = 0; i < len; i++) printf(" %.2x", buf[i]);
+	    printf("\n");
+#endif
 	    fwrite(buf, 1, len, state->logfile);
 	}
 	addr += len;
