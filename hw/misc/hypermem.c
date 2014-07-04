@@ -89,15 +89,25 @@ static void logprintf(HyperMemState *state, const char *fmt, ...) {
 
 static void logprint_vstr(HyperMemState *state, target_ulong addr,
                           target_ulong size) {
-    char c;
+    uint8_t buf[1024];
     X86CPU *cpu = X86_CPU(current_cpu);
-    int user = cpu->env.segs[R_CS].selector & 3;
+    int len;
 
     while (size > 0) {
-        c = user ? cpu_ldub_user(&cpu->env, addr) : cpu_ldub_kernel(&cpu->env, addr);
-	fprintf(state->logfile, "%c", c);
-	addr++;
-	size--;
+	/* aligned access for cases where the buffer straddles a page boundary
+	 * and one of the pages is not available
+	 */
+	size = sizeof(buf);
+	if (addr % sizeof(buf)) size -= addr % sizeof(buf);
+	if (len > size) len = size;
+	if (cpu_memory_rw_debug(CPU(cpu), addr, buf, len, 0) < 0) {
+	    fprintf(stderr, "hypermem: cannot access string at virtual "
+		    "address 0x%.lx\n", session->command);
+	} else {
+	    fwrite(buf, 1, len, state->logfile);
+	}
+	addr += len;
+	size -= len;
     }
     if (state->flushlog) fflush(state->logfile);
 }
