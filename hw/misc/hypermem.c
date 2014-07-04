@@ -97,12 +97,12 @@ static void logprint_vstr(HyperMemState *state, target_ulong addr,
 	/* aligned access for cases where the buffer straddles a page boundary
 	 * and one of the pages is not available
 	 */
-	size = sizeof(buf);
-	if (addr % sizeof(buf)) size -= addr % sizeof(buf);
+	len = sizeof(buf);
+	if (addr % sizeof(buf)) len -= addr % sizeof(buf);
 	if (len > size) len = size;
 	if (cpu_memory_rw_debug(CPU(cpu), addr, buf, len, 0) < 0) {
 	    fprintf(stderr, "hypermem: cannot access string at virtual "
-		    "address 0x%.lx\n", session->command);
+		    "address 0x%.lx\n", (long) addr);
 	} else {
 	    fwrite(buf, 1, len, state->logfile);
 	}
