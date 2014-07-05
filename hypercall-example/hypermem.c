@@ -84,7 +84,7 @@ void hypermem_print(struct hypermem_session *session, const char *str) {
 		chunk = sizeof(hypermem_entry_t);
 		if (chunk > len) chunk = len;
 		buf = 0;
-		memcpy(&buf, buf, chunk);
+		memcpy(&buf, str, chunk);
 		hypermem_write(session, buf);
 		str += chunk;
 		len -= chunk;
