@@ -50,6 +50,14 @@ typedef struct HyperMemPendingOperation {
     hypermem_entry_t value;
 } HyperMemPendingOperation;
 
+typedef struct HyperMemEdfiContext {
+    struct HyperMemEdfiContext *next;
+
+    char *name;
+    edfi_context_t context;
+    hwaddr *bb_num_executions_hwaddr;
+} HyperMemEdfiContext;
+
 typedef struct HyperMemState
 {
     ISADevice parent_obj;
@@ -63,6 +71,9 @@ typedef struct HyperMemState
 
     /* open handles */
     FILE *logfile;
+
+    /* EDFI contexts (linked list) */
+    HyperMemEdfiContext *edfi_context;
 
     /* session state */
     unsigned session_next;
@@ -145,11 +156,90 @@ static void hypermem_session_reset(HyperMemSessionState *session) {
     memset(&session->command_state, 0, sizeof(session->command_state));
 }
 
+static HyperMemEdfiContext *edfi_context_create(HyperMemState *state,
+                                                const char *name) {
+    HyperMemEdfiContext *ec;
+
+    /* allocate structure */
+    ec = (HyperMemEdfiContext *) calloc(1, sizeof(HyperMemEdfiContext));
+    ec->name = strdup(name);
+    if (!ec->name) {
+	fprintf(stderr, "hypermem: strdup failed: %s\n", strerror(errno));
+	free(ec);
+	return NULL;
+    }
+
+    /* add to linked list */
+    ec->next = state->edfi_context;
+    state->edfi_context = ec;
+}
+
+static HyperMemEdfiContext *edfi_context_find(HyperMemState *state,
+                                              const char *name) {
+    HyperMemEdfiContext *ec;
+
+    for (ec = state->edfi_context; ec = ec->next; ec) {
+	if (strcmp(ec->name, name) == 0) return ec;
+    }
+    return NULL;
+}
+
+static void edfi_context_set(HyperMemState *state, const char *name,
+                             hypermem_entry_t contextptr) {
+    HyperMemEdfiContext *ec;
+    hwaddr page_hwaddr;
+    vaddr page_count, page_index, page_vaddr;
+
+    /* overwrite if we've seen this module before */
+    ec = edfi_context_find(state, name);
+    if (ec) {
+	logprintf(stderr, "EDFI context reset module=%s\n", name);
+    } else {
+	ec = edfi_context_create(state, name);
+	if (!ec) return;
+	logprintf(stderr, "EDFI context set module=%s\n", name);
+    }
+
+    /* read EDFI context */
+    if (cpu_memory_rw_debug(current_cpu, contextptr, (uint8_t *) &ec->context,
+	sizeof(ec->context), 0) < 0) {
+	fprintf(stderr, "hypermem: edfi_context_set: cannot read context\n");
+	return;
+    }
+
+    /* TODO verify canary */
+
+    /* store physical addresses for bb_num_executions */
+    page_count = (sizeof(exec_count) * ec->context.num_bbs +
+                 (vaddr) ec->context.bb_num_executions % TARGET_PAGE_SIZE +
+		 TARGET_PAGE_SIZE - 1) / TARGET_PAGE_SIZE;
+    ec->bb_num_executions_hwaddr = (hwaddr *)
+                                  malloc(page_count * sizeof(hwaddr));
+    if (!ec->bb_num_executions_hwaddr) {
+	fprintf(stderr, "hypermem: cannot allocate memory for "
+	        "%lu page addresses: %s\n", (long) page_count, strerror(errno));
+	return;
+    }
+
+    page_vaddr = (vaddr) ec->context.bb_num_executions;
+    page_vaddr -= page_vaddr % TARGET_PAGE_SIZE;
+    for (page_index = 0; page_index < page_count; page_index++) {
+	page_hwaddr = cpu_get_phys_page_debug(current_cpu,
+	              addr & TARGET_PAGE_MASK);
+	if (page_hwaddr == -1) {
+	    fprintf(stderr, "hypermem: EDFI context contains unmapped pages\n");
+	    free(ec->bb_num_executions_hwaddr);
+	    ec->bb_num_executions_hwaddr = NULL;
+	    return;
+	}
+	ec->bb_num_executions_hwaddr[page_index] = page_hwaddr;
+	page_vaddr += TARGET_PAGE_SIZE;
+    }
+}
+
 static void edfi_context_set(HyperMemState *state, hypermem_entry_t nameptr,
     hypermem_entry_t namelen, hypermem_entry_t contextptr) {
-    edfi_context_t context;
-    CPUState *cpu = current_cpu;
-    char *name = NULL;
+    char *name;
 
     /* read module name from VM */
     name = malloc(namelen + 1);
@@ -157,23 +247,16 @@ static void edfi_context_set(HyperMemState *state, hypermem_entry_t nameptr,
 	fprintf(stderr, "hypermem: edfi_context_set: cannot allocate buffer "
 		"for name (namelen=%lu): %s\n",
 		(long) namelen, strerror(errno));
-	goto cleanup;
+	return;
     }
-    if (cpu_memory_rw_debug(cpu, nameptr, (uint8_t *) name, namelen, 0) < 0) {
+    if (cpu_memory_rw_debug(current_cpu, nameptr, (uint8_t *) name, namelen, 0) < 0) {
 	fprintf(stderr, "hypermem: edfi_context_set: cannot read name\n");
 	goto cleanup;
     }
     name[namelen] = 0;
 
-    /* read EDFI context */
-    if (cpu_memory_rw_debug(cpu, contextptr, (uint8_t *) &context,
-	sizeof(context), 0) < 0) {
-	fprintf(stderr, "hypermem: edfi_context_set: cannot read context\n");
-	goto cleanup;
-    }
-
-    /* TODO verify canary */
-    /* TODO store physical addresses canary */
+    /* now that we have the name, do the actual work */
+    edfi_context_set_with_name(state, name, contextptr);
 
 cleanup:
     /* clean up any allocated buffers not stored */
@@ -210,7 +293,6 @@ static void command_edfi_context_set_write(HyperMemState *state,
 	session->state++;
 	break;
     default:
-	logprintf(state, "edfi_context_set context=0x%lx\n", (long) value);
 	edfi_context_set(state, session->command_state.edfi_context_set.nameptr,
 	    session->command_state.edfi_context_set.namelen, value);
 	hypermem_session_reset(session);
