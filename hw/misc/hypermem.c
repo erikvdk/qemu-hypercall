@@ -34,6 +34,10 @@ typedef struct HyperMemSessionState {
 	struct {
 	    hypermem_entry_t namelen;
 	    hypermem_entry_t nameptr;
+	} edfi_faultindex_get;
+	struct {
+	    hypermem_entry_t namelen;
+	    hypermem_entry_t nameptr;
 	} fault;
 	struct {
 	    hypermem_entry_t strlen;
@@ -276,6 +280,30 @@ static void edfi_context_set(HyperMemState *state, hypermem_entry_t nameptr,
     free(name);
 }
 
+static hypermem_entry_t edfi_faultindex_get_with_name(HyperMemState *state,
+                                                      const char *nameptr) {
+    /* TODO look up fault index from parameters */
+    return 0;
+}
+
+static hypermem_entry_t edfi_faultindex_get(HyperMemState *state,
+                                            hypermem_entry_t nameptr,
+                                            hypermem_entry_t namelen) {
+    hypermem_entry_t bbindex;
+    char *name;
+
+    /* read module name from VM */
+    name = read_string(nameptr, namelen);
+    if (!name) return 0;
+
+    /* now that we have the name, do the actual work */
+    bbindex = edfi_faultindex_get_with_name(state, name);
+
+    /* clean up */
+    free(name);
+    return bbindex;
+}
+
 static void log_fault(HyperMemState *state, hypermem_entry_t nameptr,
                              hypermem_entry_t namelen,
 			     hypermem_entry_t bbindex) {
@@ -297,6 +325,7 @@ static hypermem_entry_t command_bad_read(HyperMemState *state,
 {
     fprintf(stderr, "hypermem: unexpected read during command %d\n",
             session->command);
+    hypermem_session_reset(session);
     return 0;
 }
 
@@ -306,6 +335,7 @@ static void command_bad_write(HyperMemState *state,
 {
     fprintf(stderr, "hypermem: unexpected write during command %d "
             "(value=0x%llx)\n", session->command, (long long) value);
+    hypermem_session_reset(session);
 }
 
 static void command_edfi_context_set_write(HyperMemState *state,
@@ -325,6 +355,42 @@ static void command_edfi_context_set_write(HyperMemState *state,
 	edfi_context_set(state, session->command_state.edfi_context_set.nameptr,
 	    session->command_state.edfi_context_set.namelen, value);
 	hypermem_session_reset(session);
+	break;
+    }
+}
+
+static hypermem_entry_t command_edfi_faultindex_get_read(HyperMemState *state,
+                                         HyperMemSessionState *session)
+{
+    hypermem_entry_t bbindex;
+
+    switch (session->state) {
+    case 2:
+	bbindex = edfi_faultindex_get(state,
+	                    session->command_state.edfi_faultindex_get.nameptr,
+	                    session->command_state.edfi_faultindex_get.namelen);
+	hypermem_session_reset(session);
+	return bbindex;
+    default:
+	return command_bad_read(state, session);
+    }
+}
+
+static void command_edfi_faultindex_get_write(HyperMemState *state,
+                              HyperMemSessionState *session,
+                              hypermem_entry_t value)
+{
+    switch (session->state) {
+    case 0:
+	session->command_state.edfi_faultindex_get.namelen = value;
+	session->state++;
+	break;
+    case 1:
+	session->command_state.edfi_faultindex_get.nameptr = value;
+	session->state++;
+	break;
+    default:
+	command_bad_write(state, session, value);
 	break;
     }
 }
@@ -397,10 +463,10 @@ static hypermem_entry_t handle_session_read(HyperMemState *state,
                                             HyperMemSessionState *session)
 {
     switch (session->command) {
-    case HYPERMEM_COMMAND_EDFI_CONTEXT_SET: return command_bad_read(state, session);
-    case HYPERMEM_COMMAND_FAULT: return command_bad_read(state, session);
+    case 0: break;
+    case HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET: return command_edfi_faultindex_get_read(state, session);
     case HYPERMEM_COMMAND_NOP: return command_nop_read(state, session);
-    case HYPERMEM_COMMAND_PRINT: return command_bad_read(state, session);
+    default: return command_bad_read(state, session);
     }
 
     if (session->command) {
@@ -417,16 +483,15 @@ static void handle_session_write(HyperMemState *state,
                                  hypermem_entry_t value)
 {
     switch (session->command) {
+    case 0: break;
     case HYPERMEM_COMMAND_EDFI_CONTEXT_SET: command_edfi_context_set_write(state, session, value); return;
+    case HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET: command_edfi_faultindex_get_write(state, session, value); return;
     case HYPERMEM_COMMAND_FAULT: command_fault_write(state, session, value); return;
-    case HYPERMEM_COMMAND_NOP: command_bad_write(state, session, value); return;
     case HYPERMEM_COMMAND_PRINT: command_print_write(state, session, value); return;
+    default: command_bad_write(state, session, value); return;
     }
 
-    if (session->command) {
-	fprintf(stderr, "hypermem: write for invalid command %d\n",
-	        session->command);
-    } else if (!value) {
+    if (!value) {
 	fprintf(stderr, "hypermem: command not specified\n");
     } else {
 	session->command = value;

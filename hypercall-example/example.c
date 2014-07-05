@@ -18,9 +18,9 @@ int main(int argc, char **argv) {
 
 	arg = argv + 1;
 	while (*arg) {
-		/* note: edfi_context_set and fault calls not available from
-		 * user space; they require memory access to this process,
-		 * not /dev/mem context
+		/* note: edfi_context_set, edfi_faultindex_get and fault calls
+		 * not available from user space; they require memory access
+		 * to this process, not /dev/mem context
 		 */
 		cmd = *(arg++);
 		if (strcmp(cmd, "nop") == 0) {

@@ -26,6 +26,14 @@
  * - write a pointer to the EDFI context (note: physical address is stored so
  *   it must be pinned and pointers inside may not be changed afterwards)
  *
+ * hypermem protocol - edfi faultindex get
+ * - write command identifier HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET
+ * - write module name length
+ * - write module name pointer
+ * - read back reply
+ * - the reply is the absolute basic block index where a fault should be
+ *   injected; 0 means no fault, 1 means inject a fault in the first block
+ *
  * hypermem protocol - fault
  * - write command identifier HYPERMEM_COMMAND_FAULT
  * - write module name length
@@ -58,6 +66,7 @@ typedef uint32_t hypermem_entry_t;
 #define HYPERMEM_COMMAND_FAULT			2
 #define HYPERMEM_COMMAND_EDFI_CONTEXT_SET	3
 #define HYPERMEM_COMMAND_PRINT			4
+#define HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET	5
 
 #define HYPERCALL_NOP_REPLY	0x4e6f7021
 

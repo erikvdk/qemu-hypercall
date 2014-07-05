@@ -13,6 +13,8 @@ void hypermem_disconnect(struct hypermem_session *session);
 
 void hypermem_edfi_context_set(struct hypermem_session *session,
 	const char *name, const void *context);
+int hypermem_edfi_faultindex_get(struct hypermem_session *session,
+	const char *name);
 void hypermem_fault(struct hypermem_session *session, const char *name,
 	unsigned bbindex);
 int hypermem_nop(struct hypermem_session *session);
