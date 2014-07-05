@@ -110,6 +110,9 @@ static void logprint_vstr(HyperMemState *state, target_ulong addr,
 	if (len > size) len = size;
 #ifdef HYPERMEM_DEBUG
 	printf("hypermem: reading 0x%x bytes at 0x%lx\n", len, (long) addr);
+	printf("hypermem: physical page for 0x%lx is 0x%lx\n",
+	       (long) (addr & TARGET_PAGE_MASK),
+	       (long) cpu_get_phys_page_debug(CPU(cpu), addr & TARGET_PAGE_MASK));
 #endif
 	if (cpu_memory_rw_debug(CPU(cpu), addr, buf, len, 0) < 0) {
 	    fprintf(stderr, "hypermem: cannot access string at virtual "
