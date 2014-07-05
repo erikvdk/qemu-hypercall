@@ -145,6 +145,40 @@ static void hypermem_session_reset(HyperMemSessionState *session) {
     memset(&session->command_state, 0, sizeof(session->command_state));
 }
 
+static void edfi_context_set(HyperMemState *state, hypermem_entry_t nameptr,
+    hypermem_entry_t namelen, hypermem_entry_t contextptr) {
+    edfi_context_t context;
+    CPUState *cpu - current_cpu;
+    char *name = NULL;
+
+    /* read module name from VM */
+    name = malloc(namelen + 1);
+    if (!name) {
+	fprintf(stderr, "hypermem: edfi_context_set: cannot allocate buffer "
+		"for name (namelen=%lu): %s\n",
+		(unsigned) namelen, strerror(errno));
+	goto cleanup;
+    }
+    if (cpu_memory_rw_debug(cpu, nameptr, name, namelen, 0) < 0) {
+	fprintf(stderr, "hypermem: edfi_context_set: cannot read name\n");
+	goto cleanup;
+    }
+    name[namelen] = 0;
+
+    /* read EDFI context */
+    if (cpu_memory_rw_debug(cpu, contextptr, &context, sizeof(context), 0) < 0) {
+	fprintf(stderr, "hypermem: edfi_context_set: cannot read context\n");
+	goto cleanup;
+    }
+
+    /* TODO verify canary */
+    /* TODO store physical addresses canary */
+
+cleanup:
+    /* clean up any allocated buffers not stored */
+    if (name) free(name);
+}
+
 static hypermem_entry_t command_bad_read(HyperMemState *state,
                                          HyperMemSessionState *session)
 {
@@ -176,9 +210,8 @@ static void command_edfi_context_set_write(HyperMemState *state,
 	break;
     default:
 	logprintf(state, "edfi_context_set context=0x%lx\n", (long) value);
-
-	/* TODO: convert pointer to EDFI context to physical address and store; also check canary */
-
+	edfi_context_set(state, session->command_state.edfi_context_set.nameptr,
+	    session->command_state.edfi_context_set.namelen, value);
 	hypermem_session_reset(session);
 	break;
     }
