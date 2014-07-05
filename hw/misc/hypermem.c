@@ -396,6 +396,12 @@ static hwaddr hypermem_session_get_address(unsigned session_id)
     return session_id ? (HYPERMEM_BASEADDR + session_id * sizeof(hypermem_entry_t)) : 0;
 }
 
+static unsigned hypermem_session_reset(HyperMemSessionState *session) {
+    session->command = 0;
+    session->state = 0;
+    memset(&session->command_state, 0, sizeof(session->command_state));
+}
+
 static hypermem_entry_t command_bad_read(HyperMemState *state,
                                          HyperMemSessionState *session)
 {
@@ -422,7 +428,7 @@ static void command_edfi_context_set_write(HyperMemState *state,
 
     /* TODO: store EDFI context and CR3 */
 	      
-    session->command = 0;
+    hypermem_session_reset(session);
 }
 
 static void command_fault_write(HyperMemState *state,
@@ -430,14 +436,14 @@ static void command_fault_write(HyperMemState *state,
                               hypermem_entry_t value)
 {
     logprintf(state, "fault bbindex=0x%lx\n", (long) value);
-    session->command = 0;
+    hypermem_session_reset(session);
 }
 
 static hypermem_entry_t command_nop_read(HyperMemState *state,
                                          HyperMemSessionState *session)
 {
     logprintf(state, "nop\n");
-    session->command = 0;
+    hypermem_session_reset(session);
     return HYPERCALL_NOP_REPLY;
 }
 
@@ -454,7 +460,7 @@ static void command_print_write(HyperMemState *state,
 	logprintf(state, "print ");
 	logprint_vstr(state, session->command_state.print.string_ptr, value);
 	logprintf(state, "\n");
-	session->command = 0;
+	hypermem_session_reset(session);
 	break;
     }
 }
@@ -496,7 +502,6 @@ static void handle_session_write(HyperMemState *state,
 	fprintf(stderr, "hypermem: command not specified\n");
     } else {
 	session->command = value;
-	session->state = 0;
     }
 }
 
@@ -579,6 +584,7 @@ static void hypermem_mem_write_internal(HyperMemState *state,
 	printf("hypermem: tearing down session %u at 0x%lx\n",
 	       session_id, (long) mem_value);
 #endif
+	hypermem_session_reset(session);
 	state->sessions[session_id].active = 0;
 	return;
     }
