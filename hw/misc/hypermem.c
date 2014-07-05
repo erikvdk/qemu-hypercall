@@ -172,20 +172,21 @@ static HyperMemEdfiContext *edfi_context_create(HyperMemState *state,
     /* add to linked list */
     ec->next = state->edfi_context;
     state->edfi_context = ec;
+    return ec;
 }
 
 static HyperMemEdfiContext *edfi_context_find(HyperMemState *state,
                                               const char *name) {
     HyperMemEdfiContext *ec;
 
-    for (ec = state->edfi_context; ec = ec->next; ec) {
+    for (ec = state->edfi_context; ec; ec = ec->next) {
 	if (strcmp(ec->name, name) == 0) return ec;
     }
     return NULL;
 }
 
-static void edfi_context_set(HyperMemState *state, const char *name,
-                             hypermem_entry_t contextptr) {
+static void edfi_context_set_with_name(HyperMemState *state, const char *name,
+                                       hypermem_entry_t contextptr) {
     HyperMemEdfiContext *ec;
     hwaddr page_hwaddr;
     vaddr page_count, page_index, page_vaddr;
@@ -193,11 +194,11 @@ static void edfi_context_set(HyperMemState *state, const char *name,
     /* overwrite if we've seen this module before */
     ec = edfi_context_find(state, name);
     if (ec) {
-	logprintf(stderr, "EDFI context reset module=%s\n", name);
+	logprintf(state, "EDFI context reset module=%s\n", name);
     } else {
 	ec = edfi_context_create(state, name);
 	if (!ec) return;
-	logprintf(stderr, "EDFI context set module=%s\n", name);
+	logprintf(state, "EDFI context set module=%s\n", name);
     }
 
     /* read EDFI context */
@@ -224,8 +225,7 @@ static void edfi_context_set(HyperMemState *state, const char *name,
     page_vaddr = (vaddr) ec->context.bb_num_executions;
     page_vaddr -= page_vaddr % TARGET_PAGE_SIZE;
     for (page_index = 0; page_index < page_count; page_index++) {
-	page_hwaddr = cpu_get_phys_page_debug(current_cpu,
-	              addr & TARGET_PAGE_MASK);
+	page_hwaddr = cpu_get_phys_page_debug(current_cpu, page_vaddr);
 	if (page_hwaddr == -1) {
 	    fprintf(stderr, "hypermem: EDFI context contains unmapped pages\n");
 	    free(ec->bb_num_executions_hwaddr);
