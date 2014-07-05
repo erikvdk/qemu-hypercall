@@ -324,7 +324,7 @@ static void logprint_vstr(HyperMemState *state, target_ulong addr,
     printf("hypermem: printing string at 0x%lx (virtual) with length %lx\n",
 	(long) addr, (long) size);
     for (i = 0; i < sizeof(buf); i++) buf[i] = 0xDEADBEEF >> (i % 4);
-    log_cpu_state(CPU(cpu), CPU_DUMP_CODE);
+    cpu_dump_state(CPU(cpu), stdout, fprintf, CPU_DUMP_CODE);
     mem_info(cpu);
 #endif
     while (size > 0) {
