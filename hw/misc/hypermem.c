@@ -148,7 +148,7 @@ static void hypermem_session_reset(HyperMemSessionState *session) {
 static void edfi_context_set(HyperMemState *state, hypermem_entry_t nameptr,
     hypermem_entry_t namelen, hypermem_entry_t contextptr) {
     edfi_context_t context;
-    CPUState *cpu - current_cpu;
+    CPUState *cpu = current_cpu;
     char *name = NULL;
 
     /* read module name from VM */
@@ -156,17 +156,18 @@ static void edfi_context_set(HyperMemState *state, hypermem_entry_t nameptr,
     if (!name) {
 	fprintf(stderr, "hypermem: edfi_context_set: cannot allocate buffer "
 		"for name (namelen=%lu): %s\n",
-		(unsigned) namelen, strerror(errno));
+		(long) namelen, strerror(errno));
 	goto cleanup;
     }
-    if (cpu_memory_rw_debug(cpu, nameptr, name, namelen, 0) < 0) {
+    if (cpu_memory_rw_debug(cpu, nameptr, (uint8_t *) name, namelen, 0) < 0) {
 	fprintf(stderr, "hypermem: edfi_context_set: cannot read name\n");
 	goto cleanup;
     }
     name[namelen] = 0;
 
     /* read EDFI context */
-    if (cpu_memory_rw_debug(cpu, contextptr, &context, sizeof(context), 0) < 0) {
+    if (cpu_memory_rw_debug(cpu, contextptr, (uint8_t *) &context,
+	sizeof(context), 0) < 0) {
 	fprintf(stderr, "hypermem: edfi_context_set: cannot read context\n");
 	goto cleanup;
     }
