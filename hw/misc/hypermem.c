@@ -286,15 +286,14 @@ static void log_fault(HyperMemState *state, hypermem_entry_t nameptr,
     if (!name) return;
 
     /* log fault */
-    logprintf(state, "fault name=%s bbindex=0x%lx\n", name, (long) value);
+    logprintf(state, "fault name=%s bbindex=0x%lx\n", name, (long) bbindex);
 
     /* clean up */
     free(name);
 }
 
 static hypermem_entry_t command_bad_read(HyperMemState *state,
-    hypermem_entry_t nameptr, hypermem_entry_t namelen,
-    hypermem_entry_t bbindex)
+                                         HyperMemSessionState *session)
 {
     fprintf(stderr, "hypermem: unexpected read during command %d\n",
             session->command);
