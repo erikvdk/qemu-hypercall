@@ -100,6 +100,7 @@ static void logprint_vstr(HyperMemState *state, target_ulong addr,
     printf("hypermem: printing string at 0x%lx (virtual) with length %lx\n",
 	(long) addr, (long) size);
     for (i = 0; i < sizeof(buf); i++) buf[i] = 0xDEADBEEF >> (i % 4);
+    log_cpu_state(CPU(cpu), CPU_DUMP_CODE);
 #endif
     while (size > 0) {
 	/* aligned access for cases where the buffer straddles a page boundary
