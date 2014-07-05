@@ -32,6 +32,10 @@ typedef struct HyperMemSessionState {
 	    hypermem_entry_t nameptr;
 	} edfi_context_set;
 	struct {
+	    hypermem_entry_t namelen;
+	    hypermem_entry_t nameptr;
+	} fault;
+	struct {
 	    hypermem_entry_t strlen;
 	    hypermem_entry_t strpos;
 	    char *strdata;
@@ -237,34 +241,60 @@ static void edfi_context_set_with_name(HyperMemState *state, const char *name,
     }
 }
 
+static char *read_string(vaddr strptr, vaddr strlen) {
+    char *str;
+
+    str = malloc(strlen + 1);
+    if (!str) {
+	fprintf(stderr, "hypermem: cannot allocate buffer for string "
+	        "(strlen=%lu): %s\n", (long) strlen, strerror(errno));
+	return NULL;
+    }
+    if (cpu_memory_rw_debug(current_cpu, strptr, (uint8_t *) str,
+        strlen, 0) < 0) {
+	fprintf(stderr, "hypermem: cannot read string\n");
+	free(str);
+	return NULL;
+    }
+    str[strlen] = 0;
+    return str;
+}
+
 static void edfi_context_set(HyperMemState *state, hypermem_entry_t nameptr,
-    hypermem_entry_t namelen, hypermem_entry_t contextptr) {
+                             hypermem_entry_t namelen,
+			     hypermem_entry_t contextptr) {
     char *name;
 
     /* read module name from VM */
-    name = malloc(namelen + 1);
-    if (!name) {
-	fprintf(stderr, "hypermem: edfi_context_set: cannot allocate buffer "
-		"for name (namelen=%lu): %s\n",
-		(long) namelen, strerror(errno));
-	return;
-    }
-    if (cpu_memory_rw_debug(current_cpu, nameptr, (uint8_t *) name, namelen, 0) < 0) {
-	fprintf(stderr, "hypermem: edfi_context_set: cannot read name\n");
-	goto cleanup;
-    }
-    name[namelen] = 0;
+    name = read_string(nameptr, namelen);
+    if (!name) return;
 
     /* now that we have the name, do the actual work */
     edfi_context_set_with_name(state, name, contextptr);
 
-cleanup:
-    /* clean up any allocated buffers not stored */
-    if (name) free(name);
+    /* clean up */
+    free(name);
+}
+
+static void log_fault(HyperMemState *state, hypermem_entry_t nameptr,
+                             hypermem_entry_t namelen,
+			     hypermem_entry_t bbindex) {
+    char *name;
+
+    /* read module name from VM */
+    name = read_string(nameptr, namelen);
+    if (!name) return;
+
+    /* log fault */
+    logprintf(state, "fault name=%s bbindex=0x%lx\n", name, (long) value);
+
+    /* clean up */
+    free(name);
 }
 
 static hypermem_entry_t command_bad_read(HyperMemState *state,
-                                         HyperMemSessionState *session)
+    hypermem_entry_t nameptr, hypermem_entry_t namelen,
+    hypermem_entry_t bbindex)
 {
     fprintf(stderr, "hypermem: unexpected read during command %d\n",
             session->command);
@@ -304,8 +334,21 @@ static void command_fault_write(HyperMemState *state,
                               HyperMemSessionState *session,
                               hypermem_entry_t value)
 {
-    logprintf(state, "fault bbindex=0x%lx\n", (long) value);
-    hypermem_session_reset(session);
+    switch (session->state) {
+    case 0:
+	session->command_state.fault.namelen = value;
+	session->state++;
+	break;
+    case 1:
+	session->command_state.fault.nameptr = value;
+	session->state++;
+	break;
+    default:
+	log_fault(state, session->command_state.fault.nameptr,
+	    session->command_state.fault.namelen, value);
+	hypermem_session_reset(session);
+	break;
+    }
 }
 
 static hypermem_entry_t command_nop_read(HyperMemState *state,

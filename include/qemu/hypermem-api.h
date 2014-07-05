@@ -21,13 +21,15 @@
  *
  * hypermem protocol - edfi context set
  * - write command identifier HYPERMEM_COMMAND_EDFI_CONTEXT_SET
- * - write name length
- * - write name pointer
+ * - write module name length
+ * - write module name pointer
  * - write a pointer to the EDFI context (note: physical address is stored so
  *   it must be pinned and pointers inside may not be changed afterwards)
  *
  * hypermem protocol - fault
  * - write command identifier HYPERMEM_COMMAND_FAULT
+ * - write module name length
+ * - write module name pointer
  * - write basic block index
  *
  * hypermem protocol - nop

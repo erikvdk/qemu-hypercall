@@ -8,7 +8,6 @@
 int main(int argc, char **argv) {
 	char **arg;
 	const char *cmd, *str;
-	unsigned bbindex;
 	int r = 0;
 	struct hypermem_session session;
 
@@ -19,6 +18,10 @@ int main(int argc, char **argv) {
 
 	arg = argv + 1;
 	while (*arg) {
+		/* note: edfi_context_set and fault calls not available from
+		 * user space; they require memory access to this process,
+		 * not /dev/mem context
+		 */
 		cmd = *(arg++);
 		if (strcmp(cmd, "nop") == 0) {
 			if (hypermem_nop(&session)) {
@@ -26,9 +29,6 @@ int main(int argc, char **argv) {
 			} else {
 				printf("NOP return value incorrect\n");
 			}
-		} else if (strcmp(cmd, "fault") == 0) {
-			bbindex = *arg ? atoi(*(arg++)) : 0;
-			hypermem_fault(&session, bbindex);
 		} else if (strcmp(cmd, "print") == 0) {
 			str = *arg ? *(arg++) : "hello world";
 			hypermem_print(&session, str);

@@ -67,8 +67,11 @@ void hypermem_edfi_context_set(struct hypermem_session *session,
 	hypermem_write(session, (hypermem_entry_t) context);
 }
 
-void hypermem_fault(struct hypermem_session *session, unsigned bbindex) {
+void hypermem_fault(struct hypermem_session *session, const char *name,
+	unsigned bbindex) {
 	hypermem_write(session, HYPERMEM_COMMAND_FAULT);
+	hypermem_write(session, strlen(name));
+	hypermem_write(session, (hypermem_entry_t) name);
 	hypermem_write(session, bbindex);
 }
 
