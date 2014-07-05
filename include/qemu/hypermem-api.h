@@ -34,8 +34,8 @@
  *
  * hypermem protocol - print
  * - write command identifier HYPERMEM_COMMAND_PRINT
- * - write a pointer to the string
  * - write a length of the string in bytes, excluding terminator
+ * - write string data, one hypermem_entry_t unit at a time
  */
  
  #include <stdint.h>

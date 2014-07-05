@@ -28,7 +28,9 @@ typedef struct HyperMemSessionState {
     /* command state */
     union {
 	struct {
-	    hypermem_entry_t string_ptr;
+	    hypermem_entry_t strlen;
+	    hypermem_entry_t strpos;
+	    char *strdata;
 	} print;
     } command_state;
 } HyperMemSessionState;
@@ -397,6 +399,13 @@ static hwaddr hypermem_session_get_address(unsigned session_id)
 }
 
 static unsigned hypermem_session_reset(HyperMemSessionState *session) {
+    switch (session->command) {
+    case HYPERMEM_COMMAND_PRINT:
+	if (session->command_state.print.strdata) {
+	    free(session->command_state.print.strdata);
+	}
+	break;
+    }
     session->command = 0;
     session->state = 0;
     memset(&session->command_state, 0, sizeof(session->command_state));
@@ -453,15 +462,32 @@ static void command_print_write(HyperMemState *state,
 {
     switch (session->state) {
     case 0:
-	session->command_state.print.string_ptr = value;
+	session->command_state.print.strlen = value;
+	session->command_state.print.strpos = 0;
+	session->command_state.print.strdata = malloc(value + sizeof(hypermem_entry_t));
+	if (!session->command_state.print.strdata) {
+	    fprintf(stderr, "hypermem: cannot allocate print buffer: %s\n",
+	            strerror(errno));
+	}
 	session->state++;
 	break;
     default:
-	logprintf(state, "print ");
-	logprint_vstr(state, session->command_state.print.string_ptr, value);
-	logprintf(state, "\n");
-	hypermem_session_reset(session);
+	if (session->command_state.print.strdata) {
+	    memcpy(session->command_state.print.strdata +
+	           session->command_state.print.strpos,
+	           value, sizeof(hypermem_entry_t));
+	}
+	session->command_state.print.strpos += sizeof(hypermem_entry_t);
 	break;
+    }
+
+    if (session->command_state.print.strpos >=
+        session->command_state.print.strlen) {
+	if (session->command_state.print.strdata) {
+	    session->command_state.print.strdata[session->command_state.print.strlen] = 0;
+	    logprintf(state, "print %s\n", session->command_state.print.strdata);
+	}
+	hypermem_session_reset(session);
     }
 }
 

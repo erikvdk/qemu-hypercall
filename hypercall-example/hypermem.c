@@ -75,7 +75,18 @@ int hypermem_nop(struct hypermem_session *session) {
 }
 
 void hypermem_print(struct hypermem_session *session, const char *str) {
+	hypermem_entry_t buf;
+	size_t chunk, len = strlen(str);
+
 	hypermem_write(session, HYPERMEM_COMMAND_PRINT);
-	hypermem_write(session, (hypermem_entry_t) str);
-	hypermem_write(session, strlen(str));
+	hypermem_write(session, len);
+	while (len > 0) {
+		chunk = sizeof(hypermem_entry_t);
+		if (chunk > len) chunk = len;
+		buf = 0;
+		memcpy(&buf, buf, chunk);
+		hypermem_write(session, buf);
+		str += chunk;
+		len -= chunk;
+	}
 }
