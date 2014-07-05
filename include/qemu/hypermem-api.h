@@ -46,12 +46,11 @@
 typedef uint32_t hypermem_entry_t;
 /* I don't know how to tell the OS a memory region is reserved so I'll just
  * steal part of the video memory and hope it won't be used
+ *
+ * note: more than 256 bytes risks a race condition if reads are not atomic 
  */
 #define HYPERMEM_BASEADDR	0xb7000
-#define HYPERMEM_SIZE		0x00100 /* note: more than 256 bytes risks
-				         * a race condition if reads are
-				         * not atomic 
-					 */
+#define HYPERMEM_SIZE		0x00100 
 
 #define HYPERMEM_COMMAND_NOP			1
 #define HYPERMEM_COMMAND_FAULT			2
