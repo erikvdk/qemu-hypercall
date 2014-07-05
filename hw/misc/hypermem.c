@@ -28,6 +28,10 @@ typedef struct HyperMemSessionState {
     /* command state */
     union {
 	struct {
+	    hypermem_entry_t namelen;
+	    hypermem_entry_t nameptr;
+	} edfi_context_set;
+	struct {
 	    hypermem_entry_t strlen;
 	    hypermem_entry_t strpos;
 	    char *strdata;
@@ -161,13 +165,23 @@ static void command_edfi_context_set_write(HyperMemState *state,
                               HyperMemSessionState *session,
                               hypermem_entry_t value)
 {
-    X86CPU *cpu = X86_CPU(current_cpu);
-    logprintf(state, "edfi_context_set CR3=0x%llx context=0x%lx\n",
-              (long long) cpu->env.cr[3], (long) value);
+    switch (session->state) {
+    case 0:
+	session->command_state.edfi_context_set.namelen = value;
+	session->state++;
+	break;
+    case 1:
+	session->command_state.edfi_context_set.nameptr = value;
+	session->state++;
+	break;
+    default:
+	logprintf(state, "edfi_context_set context=0x%lx\n", (long) value);
 
-    /* TODO: store EDFI context and CR3 */
-	      
-    hypermem_session_reset(session);
+	/* TODO: convert pointer to EDFI context to physical address and store; also check canary */
+
+	hypermem_session_reset(session);
+	break;
+    }
 }
 
 static void command_fault_write(HyperMemState *state,

@@ -59,8 +59,11 @@ void hypermem_disconnect(struct hypermem_session *session) {
 	}
 }
 
-void hypermem_edfi_context_set(struct hypermem_session *session, void *context) {
+void hypermem_edfi_context_set(struct hypermem_session *session,
+	const char *name, void *context) {
 	hypermem_write(session, HYPERMEM_COMMAND_EDFI_CONTEXT_SET);
+	hypermem_write(session, strlen(name));
+	hypermem_write(session, (hypermem_entry_t) name);
 	hypermem_write(session, (hypermem_entry_t) context);
 }
 

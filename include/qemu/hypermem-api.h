@@ -21,7 +21,10 @@
  *
  * hypermem protocol - edfi context set
  * - write command identifier HYPERMEM_COMMAND_EDFI_CONTEXT_SET
- * - write a pointer to the EDFI context (note: implicitly CR3 is stored as well)
+ * - write name length
+ * - write name pointer
+ * - write a pointer to the EDFI context (note: physical address is stored so
+ *   it must be pinned and pointers inside may not be changed afterwards)
  *
  * hypermem protocol - fault
  * - write command identifier HYPERMEM_COMMAND_FAULT
