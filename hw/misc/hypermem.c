@@ -305,8 +305,8 @@ static hypermem_entry_t edfi_faultindex_get_with_name(HyperMemState *state,
 
     /* faultspec parameter present? */
     if (!state->faultspec) {
-	logprintf("edfi_faultindex_get name=%s fault injection disabled\n",
-	          name);
+	logprintf(state, "edfi_faultindex_get name=%s "
+	          "fault injection disabled\n", name);
 	return 0;
     }
 
@@ -321,17 +321,20 @@ static hypermem_entry_t edfi_faultindex_get_with_name(HyperMemState *state,
 	if ((next - faultspec == namelen) &&
 	    (strncmp(faultspec, name, namelen) == 0)) {
 	    bbindex = atoi(next + 1);
-	    logprintf("edfi_faultindex_get name=%s bbindex=%d\n", name, bbindex);
+	    logprintf(state, "edfi_faultindex_get name=%s bbindex=%d\n",
+	              name, bbindex);
 	    return bbindex;
 	}
 
 	/* skip to next pair */
-	next = strchr(bbspec + 1, ':');
+	next = strchr(next + 1, ':');
 	if (!next) break;
 	faultspec = next + 1;
     }
 
-    /* TODO look up fault index from parameters */
+
+    logprintf(state, "edfi_faultindex_get name=%s not selected "
+                     "for fault injection\n", name);
     return 0;
 }
 
