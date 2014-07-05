@@ -1,4 +1,19 @@
-#include "hw/hw.h"
+/*
+ * HyperMem: hypercall mechanism using memory-mapped IO. For documentation
+ * of the API to be used within the VM, see: include/qemu/hypermem-api.h
+ *
+ * Example device specification with properties:
+ * -device hypermem,logpath=out.txt,flushlog=true,faultspec=vfs:123:pm:130
+ *
+ * logpath:   where to log interactions with the VM
+ * flushlog:  set to true to flush the write buffer on every line of log output
+ *            (useful for live debugging)
+ * faultspec: specification of faults to be injected, consisting of 
+ *            modulename:bbindex pairs separated by colons; bbindex is specified
+ *            such that the first basic block has bbindex=1
+ */
+
+ #include "hw/hw.h"
 #include "hw/isa/isa.h"
 #include "hw/i386/pc.h"
 #include "sysemu/kvm.h"
@@ -73,6 +88,7 @@ typedef struct HyperMemState
     /* properties */
     char *logpath;
     bool flushlog;
+    char *faultspec;
 
     /* QEMU objects */
     MemoryRegion io;
@@ -94,6 +110,7 @@ typedef struct HyperMemState
 static Property hypermem_props[] = {
     DEFINE_PROP_STRING("logpath", HyperMemState, logpath),
     DEFINE_PROP_BOOL("flushlog", HyperMemState, flushlog, false),
+    DEFINE_PROP_STRING("faultspec", HyperMemState, faultspec),
     DEFINE_PROP_END_OF_LIST()
 };
 
@@ -281,7 +298,39 @@ static void edfi_context_set(HyperMemState *state, hypermem_entry_t nameptr,
 }
 
 static hypermem_entry_t edfi_faultindex_get_with_name(HyperMemState *state,
-                                                      const char *nameptr) {
+                                                      const char *name) {
+    int bbindex;
+    const char *faultspec, *next;
+    size_t namelen = strlen(name);
+
+    /* faultspec parameter present? */
+    if (!state->faultspec) {
+	logprintf("edfi_faultindex_get name=%s fault injection disabled\n",
+	          name);
+	return 0;
+    }
+
+    /* find a matching pair in faultspec */
+    faultspec = state->faultspec;
+    while (*faultspec) {
+        /* look for delimiter at end of module name */
+	next = strchr(faultspec, ':');
+	if (!next) break;
+
+	/* is this the module we are looking for */
+	if ((next - faultspec == namelen) &&
+	    (strncmp(faultspec, name, namelen) == 0)) {
+	    bbindex = atoi(next + 1);
+	    logprintf("edfi_faultindex_get name=%s bbindex=%d\n", name, bbindex);
+	    return bbindex;
+	}
+
+	/* skip to next pair */
+	next = strchr(bbspec + 1, ':');
+	if (!next) break;
+	faultspec = next + 1;
+    }
+
     /* TODO look up fault index from parameters */
     return 0;
 }
