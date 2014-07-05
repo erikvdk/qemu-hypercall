@@ -26,6 +26,14 @@
  * - write a pointer to the EDFI context (note: physical address is stored so
  *   it must be pinned and pointers inside may not be changed afterwards)
  *
+ * hypermem protocol - edfi dump all statistics
+ * - write command identifier HYPERMEM_COMMAND_EDFI_DUMP_STATS
+ *
+ * hypermem protocol - edfi dump statistics for module
+ * - write command identifier HYPERMEM_COMMAND_EDFI_DUMP_STATS_MODULE
+ * - write module name length
+ * - write module name pointer
+ *
  * hypermem protocol - edfi faultindex get
  * - write command identifier HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET
  * - write module name length
@@ -67,6 +75,8 @@ typedef uint32_t hypermem_entry_t;
 #define HYPERMEM_COMMAND_EDFI_CONTEXT_SET	3
 #define HYPERMEM_COMMAND_PRINT			4
 #define HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET	5
+#define HYPERMEM_COMMAND_EDFI_DUMP_STATS	6
+#define HYPERMEM_COMMAND_EDFI_DUMP_STATS_MODULE	7
 
 #define HYPERCALL_NOP_REPLY	0x4e6f7021
 

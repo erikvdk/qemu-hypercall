@@ -67,6 +67,17 @@ void hypermem_edfi_context_set(struct hypermem_session *session,
 	hypermem_write(session, (hypermem_entry_t) context);
 }
 
+int hypermem_edfi_dump_stats(struct hypermem_session *session) {
+	hypermem_write(session, HYPERMEM_COMMAND_EDFI_DUMP_STATS);
+}
+
+int hypermem_edfi_dump_stats_module(struct hypermem_session *session,
+	const char *name) {
+	hypermem_write(session, HYPERMEM_COMMAND_EDFI_DUMP_STATS_MODULE);
+	hypermem_write(session, strlen(name));
+	hypermem_write(session, (hypermem_entry_t) name);
+}
+
 int hypermem_edfi_faultindex_get(struct hypermem_session *session,
 	const char *name) {
 	hypermem_write(session, HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET);

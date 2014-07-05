@@ -13,7 +13,7 @@
  *            such that the first basic block has bbindex=1
  */
 
- #include "hw/hw.h"
+#include "hw/hw.h"
 #include "hw/isa/isa.h"
 #include "hw/i386/pc.h"
 #include "sysemu/kvm.h"
@@ -46,6 +46,9 @@ typedef struct HyperMemSessionState {
 	    hypermem_entry_t namelen;
 	    hypermem_entry_t nameptr;
 	} edfi_context_set;
+	struct {
+	    hypermem_entry_t namelen;
+	} edfi_dump_stats_module;
 	struct {
 	    hypermem_entry_t namelen;
 	    hypermem_entry_t nameptr;
@@ -297,6 +300,48 @@ static void edfi_context_set(HyperMemState *state, hypermem_entry_t nameptr,
     free(name);
 }
 
+static void edfi_dump_stats_module_with_context(HyperMemState *state,
+                                                HyperMemEdfiContext *ec) {
+    logprintf(state, "edfi_dump_stats_module name=%s\n", ec->name);
+    /* TODO retrieve execution counts and dumpt them in a convenient format */
+}
+
+static void edfi_dump_stats_all(HyperMemState *state) {
+    HyperMemEdfiContext *ec;
+
+    logprintf(state, "edfi_dump_stats\n");
+    for (ec = state->edfi_context; ec; ec = ec->next) {
+	edfi_dump_stats_module_with_context(state, ec);
+    }
+}
+
+static void edfi_dump_stats_module_with_name(HyperMemState *state,
+                                             const char *name) {
+    HyperMemEdfiContext *ec = edfi_context_find(state, name);
+
+    if (ec) {
+	edfi_dump_stats_module_with_context(state, ec);
+    } else {
+	logprintf(state, "edfi_dump_stats_module name=%s no context known\n", name);
+    }
+}
+
+static void edfi_dump_stats_module(HyperMemState *state,
+                                   hypermem_entry_t nameptr,
+                                   hypermem_entry_t namelen) {
+    char *name;
+
+    /* read module name from VM */
+    name = read_string(nameptr, namelen);
+    if (!name) return;
+
+    /* now that we have the name, do the actual work */
+    edfi_dump_stats_module_with_name(state, name);
+
+    /* clean up */
+    free(name);
+}
+
 static hypermem_entry_t edfi_faultindex_get_with_name(HyperMemState *state,
                                                       const char *name) {
     int bbindex;
@@ -406,6 +451,23 @@ static void command_edfi_context_set_write(HyperMemState *state,
     default:
 	edfi_context_set(state, session->command_state.edfi_context_set.nameptr,
 	    session->command_state.edfi_context_set.namelen, value);
+	hypermem_session_reset(session);
+	break;
+    }
+}
+
+static void command_edfi_dump_stats_module(HyperMemState *state,
+                                           HyperMemSessionState *session,
+                                           hypermem_entry_t value)
+{
+    switch (session->state) {
+    case 0:
+	session->command_state.edfi_dump_stats_module.namelen = value;
+	session->state++;
+	break;
+    default:
+	edfi_dump_stats_module(state, value,
+	    session->command_state.edfi_dump_stats_module.namelen);
 	hypermem_session_reset(session);
 	break;
     }
@@ -537,6 +599,7 @@ static void handle_session_write(HyperMemState *state,
     switch (session->command) {
     case 0: break;
     case HYPERMEM_COMMAND_EDFI_CONTEXT_SET: command_edfi_context_set_write(state, session, value); return;
+    case HYPERMEM_COMMAND_EDFI_DUMP_STATS_MODULE: command_edfi_dump_stats_module(state, session, value); return;
     case HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET: command_edfi_faultindex_get_write(state, session, value); return;
     case HYPERMEM_COMMAND_FAULT: command_fault_write(state, session, value); return;
     case HYPERMEM_COMMAND_PRINT: command_print_write(state, session, value); return;
@@ -547,6 +610,12 @@ static void handle_session_write(HyperMemState *state,
 	fprintf(stderr, "hypermem: command not specified\n");
     } else {
 	session->command = value;
+	switch (session->command) {
+	case HYPERMEM_COMMAND_EDFI_DUMP_STATS_MODULE:
+	    edfi_dump_stats_all(state);
+	    hypermem_session_reset(session);
+	    break;
+	}
     }
 }
 
