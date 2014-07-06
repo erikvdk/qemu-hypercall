@@ -258,7 +258,12 @@ static void edfi_context_set_with_name(HyperMemState *state, const char *name,
 	return;
     }
 
-    /* TODO verify canary */
+    /* verify canary */
+    if (ec->context.canary_value1 != EDFI_CANARY_VALUE ||
+        ec->context.canary_value2 != EDFI_CANARY_VALUE) {
+	fprintf(stderr, "hypermem: warning: EDFI context canaries incorrect\n");
+	return;
+    }
 
     /* store physical addresses for bb_num_executions */
     page_count = (sizeof(exec_count) * ec->context.num_bbs +
