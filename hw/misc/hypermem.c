@@ -265,8 +265,8 @@ static void edfi_context_set_with_name(HyperMemState *state, const char *name,
 	return;
     }
 
-    /* store physical addresses for bb_num_executions */
-    page_count = (sizeof(exec_count) * ec->context.num_bbs +
+    /* store physical addresses for bb_num_executions (including canaries) */
+    page_count = (sizeof(exec_count) * (ec->context.num_bbs + 2) +
                  (vaddr) ec->context.bb_num_executions % TARGET_PAGE_SIZE +
 		 TARGET_PAGE_SIZE - 1) / TARGET_PAGE_SIZE;
     ec->bb_num_executions_hwaddr = CALLOC(page_count, hwaddr);
@@ -346,16 +346,26 @@ static void edfi_dump_stats_module_with_context(HyperMemState *state,
     exec_count *bb_num_executions, count, countrep;
     int i, repeats;
 
-    /* copy bb_num_executions */
+    /* copy bb_num_executions (including canaries) */
     bb_num_executions = load_from_hwaddrs((vaddr) ec->context.bb_num_executions,
-	ec->context.num_bbs * sizeof(exec_count), ec->bb_num_executions_hwaddr);
+	(ec->context.num_bbs + 2) * sizeof(exec_count),
+	ec->bb_num_executions_hwaddr);
     if (!bb_num_executions) return;
+
+    /* check canaries */
+    if (bb_num_executions[0] != EDFI_CANARY_VALUE ||
+        bb_num_executions[ec->context.num_bbs + 1] != EDFI_CANARY_VALUE) {
+	fprintf(stderr, "hypermem: warning: bb_num_executions canaries "
+	        "incorrect\n");
+	free(bb_num_executions);
+	return;
+    }    
 
     /* dump execution counts with run-length encoding */
     logprintf(state, "edfi_dump_stats_module name=%s", ec->name);
     countrep = 0;
     repeats = 0;
-    for (i = 0; i < ec->context.num_bbs; i++) {
+    for (i = 1; i <= ec->context.num_bbs; i++) {
         count = bb_num_executions[i];
 	if (countrep == count) {
 	    repeats++;
