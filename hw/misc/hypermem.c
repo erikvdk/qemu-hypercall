@@ -436,7 +436,6 @@ static hypermem_entry_t edfi_faultindex_get_with_name(HyperMemState *state,
 	faultspec = next + 1;
     }
 
-
     logprintf(state, "edfi_faultindex_get name=%s not selected "
                      "for fault injection\n", name);
     return 0;
