@@ -300,10 +300,71 @@ static void edfi_context_set(HyperMemState *state, hypermem_entry_t nameptr,
     free(name);
 }
 
+static void *load_from_hwaddrs(vaddr vaddr, vaddr size, hwaddr *hwaddrs) {
+    void *buffer;
+    vaddr chunk;
+    hwaddr hwaddr;
+    uint8_t *p;
+
+    buffer = calloc(1, size);
+    if (!buffer) {
+	fprintf(stderr, "hypermem: cannot allocate buffer "
+	        "(size=%lu): %s\n", (long) size, strerror(errno));
+	return NULL;
+    }
+
+    p = buffer;
+    while (size > 0) {
+	chunk = TARGET_PAGE_SIZE - vaddr % TARGET_PAGE_SIZE;
+	hwaddr = *hwaddrs + vaddr % TARGET_PAGE_SIZE;
+	if (cpu_physical_memory_read(hwaddr, p, chunk) < 0) {
+	    fprintf(stderr, "hypermem: cannot read from hwaddr\n");
+	}
+	vaddr += chunk;
+	size -= chunk;
+	hwaddrs++;
+	p += chunk;
+    }
+    return buffer;
+}
+
 static void edfi_dump_stats_module_with_context(HyperMemState *state,
                                                 HyperMemEdfiContext *ec) {
-    logprintf(state, "edfi_dump_stats_module name=%s\n", ec->name);
-    /* TODO retrieve execution counts and dumpt them in a convenient format */
+    exec_count *bb_num_executions, count, countrep;
+    int i, repeats;
+
+    /* copy bb_num_executions */
+    bb_num_executions = load_from_hwaddrs(ec->context.bb_num_executions,
+	ec->context.num_bbs * sizeof(exec_count), ec->bb_num_executions_hwaddr);
+    if (!bb_num_executions) return;
+
+    /* dump execution counts with run-length encoding */
+    logprintf(state, "edfi_dump_stats_module name=%s", ec->name);
+    countrep = 0;
+    repeats = 0;
+    for (i = 0; i < ec->contex.num_bbs; i++) {
+        count = bb_num_executions[i];
+	if (countrep == count) {
+	    repeats++;
+	} else {
+	    if (repeats == 1) {
+		logprintf(state, " %ld", (long) countrep);
+	    } else if (repeats != 0) 
+		logprintf(state, " %dx%ld", repeats, (long) countrep);
+	    }
+	    countrep = count;
+	    repeats = 1
+	}
+    }
+    if (repeats == 1) {
+	logprintf(state, " %ld", (long) countrep);
+    } else if (repeats != 0) 
+	logprintf(state, " %dx%ld", repeats, (long) countrep);
+    }
+    logprintf(state, "\n");
+
+    /* clean up */
+    free(bb_num_executions);
 }
 
 static void edfi_dump_stats_all(HyperMemState *state) {
