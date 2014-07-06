@@ -119,7 +119,7 @@ static Property hypermem_props[] = {
 
 static void logvprintf(HyperMemState *state, const char *fmt, va_list args) {
     vfprintf(state->logfile, fmt, args);
-    if (state->flushlog) fflush(state->logfile);
+    if (state->flushlog && strchr(fmt, '\n')) fflush(state->logfile);
 }
 
 static void logprintf(HyperMemState *state, const char *fmt, ...)
