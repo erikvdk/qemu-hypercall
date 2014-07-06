@@ -189,6 +189,9 @@ static hwaddr hypermem_session_get_address(unsigned session_id)
 }
 
 static void hypermem_session_reset(HyperMemSessionState *session) {
+    /* end the current command on the session (if any) and clean up
+     * command state
+     */
     switch (session->command) {
     case HYPERMEM_COMMAND_PRINT:
 	if (session->command_state.print.strdata) {
@@ -319,6 +322,7 @@ static void *load_from_hwaddrs(vaddr viraddr, vaddr size, hwaddr *hwaddrs) {
     buffer = CALLOC(size, uint8_t);
     if (!buffer) return NULL;
 
+    /* load buffer from physical addresses, one page at a time */
     p = buffer;
     while (size > 0) {
 	chunk = TARGET_PAGE_SIZE - viraddr % TARGET_PAGE_SIZE;
@@ -608,6 +612,7 @@ static void command_print_write(HyperMemState *state,
 {
     switch (session->state) {
     case 0:
+	/* string length */
 	session->command_state.print.strlen = value;
 	session->command_state.print.strpos = 0;
 	session->command_state.print.strdata =
@@ -615,6 +620,7 @@ static void command_print_write(HyperMemState *state,
 	session->state++;
 	break;
     default:
+	/* string data, four bytes at a time */
 	if (session->command_state.print.strdata) {
 	    memcpy(session->command_state.print.strdata +
 	           session->command_state.print.strpos,
@@ -624,6 +630,7 @@ static void command_print_write(HyperMemState *state,
 	break;
     }
 
+    /* print string once we have all the chunks */
     if (session->command_state.print.strpos >=
         session->command_state.print.strlen) {
 	if (session->command_state.print.strdata) {
@@ -637,6 +644,9 @@ static void command_print_write(HyperMemState *state,
 static hypermem_entry_t handle_session_read(HyperMemState *state,
                                             HyperMemSessionState *session)
 {
+    /* handle a read operation within a session according to the current
+     * command type
+     */
     switch (session->command) {
     case 0: break;
     case HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET: return command_edfi_faultindex_get_read(state, session);
@@ -657,6 +667,10 @@ static void handle_session_write(HyperMemState *state,
                                  HyperMemSessionState *session,
                                  hypermem_entry_t value)
 {
+    /* handle a write operation within a session according to the current
+     * command type; if there is no current command, the value written is
+     * the command identifier
+     */
     switch (session->command) {
     case 0: break;
     case HYPERMEM_COMMAND_EDFI_CONTEXT_SET: command_edfi_context_set_write(state, session, value); return;
@@ -671,6 +685,10 @@ static void handle_session_write(HyperMemState *state,
 	fprintf(stderr, "hypermem: warning: command not specified\n");
     } else {
 	session->command = value;
+
+	/* command types that involve neither reads nor writes are
+	 * handled immediately
+	 */
 	switch (session->command) {
 	case HYPERMEM_COMMAND_EDFI_DUMP_STATS_MODULE:
 	    edfi_dump_stats_all(state);
