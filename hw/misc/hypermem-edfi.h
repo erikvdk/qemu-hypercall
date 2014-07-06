@@ -8,6 +8,7 @@
 #endif
 
 #define EDFI_DFLIB_PATH_MAX                     (512)
+#define EDFI_CANARY_VALUE                       0xFF0A0011
 
 typedef unsigned long long exec_count;
 typedef struct {
@@ -19,6 +20,7 @@ typedef struct {
 typedef struct {
     float fault_prob;
     int min_fdp_interval;
+    int faulty_bb_index;
     unsigned int min_fault_time_interval;
     unsigned int max_time;
     unsigned long long max_faults;
@@ -27,6 +29,7 @@ typedef struct {
 } PACKED edfi_context_conf_t;
 
 typedef struct {
+    unsigned int canary_value1;
     int fault_fdp_count;
     unsigned long long fault_time;
     unsigned long long start_time;
@@ -41,6 +44,7 @@ typedef struct {
     int num_requests_on_start;
     int verbosity;
     edfi_context_conf_t c;
+    unsigned int canary_value2;
 } PACKED edfi_context_t;
 
 #endif /* !defined(HYPERMEM_EDFI_H) */
