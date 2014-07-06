@@ -132,6 +132,23 @@ static void logprintf(HyperMemState *state, const char *fmt, ...) {
     va_end(args);
 }
 
+#define CALLOC(count, type) ((type *) calloc_checked((count), sizeof(type), __FILE__, __LINE__))
+
+static inline void *calloc_checked(size_t count, size_t size,
+                                   const char *file, int line) {
+    void *p;
+
+    if (!count || !size) return NULL;
+
+    p = calloc(count, size);
+    if (!p) {
+	fprintf(stderr, "hypermem: error: calloc(%lu, %lu) "
+	        "failed at %s:%d: %s\n", (long) count, (long) size,
+		file, line, strerror(errno));
+    }
+    return p;
+}
+
 static void hypermem_session_set_active(HyperMemSessionState *session)
 {
     memset(session, 0, sizeof(HyperMemSessionState));
@@ -189,10 +206,12 @@ static HyperMemEdfiContext *edfi_context_create(HyperMemState *state,
     HyperMemEdfiContext *ec;
 
     /* allocate structure */
-    ec = (HyperMemEdfiContext *) calloc(1, sizeof(HyperMemEdfiContext));
+    ec = CALLOC(1, HyperMemEdfiContext);
+    if (!ec) return NULL;
     ec->name = strdup(name);
     if (!ec->name) {
-	fprintf(stderr, "hypermem: strdup failed: %s\n", strerror(errno));
+	fprintf(stderr, "hypermem: error: strdup failed: %s\n",
+	        strerror(errno));
 	free(ec);
 	return NULL;
     }
@@ -232,7 +251,7 @@ static void edfi_context_set_with_name(HyperMemState *state, const char *name,
     /* read EDFI context */
     if (cpu_memory_rw_debug(current_cpu, contextptr, (uint8_t *) &ec->context,
 	sizeof(ec->context), 0) < 0) {
-	fprintf(stderr, "hypermem: edfi_context_set: cannot read context\n");
+	fprintf(stderr, "hypermem: warning: cannot read EDFI context\n");
 	return;
     }
 
@@ -242,20 +261,15 @@ static void edfi_context_set_with_name(HyperMemState *state, const char *name,
     page_count = (sizeof(exec_count) * ec->context.num_bbs +
                  (vaddr) ec->context.bb_num_executions % TARGET_PAGE_SIZE +
 		 TARGET_PAGE_SIZE - 1) / TARGET_PAGE_SIZE;
-    ec->bb_num_executions_hwaddr = (hwaddr *)
-                                  malloc(page_count * sizeof(hwaddr));
-    if (!ec->bb_num_executions_hwaddr) {
-	fprintf(stderr, "hypermem: cannot allocate memory for "
-	        "%lu page addresses: %s\n", (long) page_count, strerror(errno));
-	return;
-    }
+    ec->bb_num_executions_hwaddr = CALLOC(page_count, hwaddr);
+    if (!ec->bb_num_executions_hwaddr) return;
 
     page_vaddr = (vaddr) ec->context.bb_num_executions;
     page_vaddr -= page_vaddr % TARGET_PAGE_SIZE;
     for (page_index = 0; page_index < page_count; page_index++) {
 	page_hwaddr = cpu_get_phys_page_debug(current_cpu, page_vaddr);
 	if (page_hwaddr == -1) {
-	    fprintf(stderr, "hypermem: EDFI context contains unmapped pages\n");
+	    fprintf(stderr, "hypermem: warning: EDFI context contains unmapped pages\n");
 	    free(ec->bb_num_executions_hwaddr);
 	    ec->bb_num_executions_hwaddr = NULL;
 	    return;
@@ -268,15 +282,12 @@ static void edfi_context_set_with_name(HyperMemState *state, const char *name,
 static char *read_string(vaddr strptr, vaddr strlen) {
     char *str;
 
-    str = malloc(strlen + 1);
-    if (!str) {
-	fprintf(stderr, "hypermem: cannot allocate buffer for string "
-	        "(strlen=%lu): %s\n", (long) strlen, strerror(errno));
-	return NULL;
-    }
+    str = CALLOC(strlen + 1, char);
+    if (!str) return NULL;
+
     if (cpu_memory_rw_debug(current_cpu, strptr, (uint8_t *) str,
         strlen, 0) < 0) {
-	fprintf(stderr, "hypermem: cannot read string\n");
+	fprintf(stderr, "hypermem: warning: cannot read string\n");
 	free(str);
 	return NULL;
     }
@@ -301,17 +312,12 @@ static void edfi_context_set(HyperMemState *state, hypermem_entry_t nameptr,
 }
 
 static void *load_from_hwaddrs(vaddr viraddr, vaddr size, hwaddr *hwaddrs) {
-    void *buffer;
+    uint8_t *buffer, *p;
     vaddr chunk;
     hwaddr hwaddr;
-    uint8_t *p;
 
-    buffer = calloc(1, size);
-    if (!buffer) {
-	fprintf(stderr, "hypermem: cannot allocate buffer "
-	        "(size=%lu): %s\n", (long) size, strerror(errno));
-	return NULL;
-    }
+    buffer = CALLOC(size, uint8_t);
+    if (!buffer) return NULL;
 
     p = buffer;
     while (size > 0) {
@@ -478,7 +484,7 @@ static void log_fault(HyperMemState *state, hypermem_entry_t nameptr,
 static hypermem_entry_t command_bad_read(HyperMemState *state,
                                          HyperMemSessionState *session)
 {
-    fprintf(stderr, "hypermem: unexpected read during command %d\n",
+    fprintf(stderr, "hypermem: warning: unexpected read during command %d\n",
             session->command);
     hypermem_session_reset(session);
     return 0;
@@ -488,7 +494,7 @@ static void command_bad_write(HyperMemState *state,
                               HyperMemSessionState *session,
                               hypermem_entry_t value)
 {
-    fprintf(stderr, "hypermem: unexpected write during command %d "
+    fprintf(stderr, "hypermem: warning: unexpected write during command %d "
             "(value=0x%llx)\n", session->command, (long long) value);
     hypermem_session_reset(session);
 }
@@ -604,11 +610,8 @@ static void command_print_write(HyperMemState *state,
     case 0:
 	session->command_state.print.strlen = value;
 	session->command_state.print.strpos = 0;
-	session->command_state.print.strdata = malloc(value + sizeof(hypermem_entry_t));
-	if (!session->command_state.print.strdata) {
-	    fprintf(stderr, "hypermem: cannot allocate print buffer: %s\n",
-	            strerror(errno));
-	}
+	session->command_state.print.strdata =
+	    CALLOC(value + sizeof(hypermem_entry_t), char);
 	session->state++;
 	break;
     default:
@@ -642,10 +645,10 @@ static hypermem_entry_t handle_session_read(HyperMemState *state,
     }
 
     if (session->command) {
-	fprintf(stderr, "hypermem: read for invalid command %d\n",
+	fprintf(stderr, "hypermem: warning: read for invalid command %d\n",
 	        session->command);
     } else {
-	fprintf(stderr, "hypermem: read before selecting command\n");
+	fprintf(stderr, "hypermem: warning: read before selecting command\n");
     }
     return 0;
 }
@@ -665,7 +668,7 @@ static void handle_session_write(HyperMemState *state,
     }
 
     if (!value) {
-	fprintf(stderr, "hypermem: command not specified\n");
+	fprintf(stderr, "hypermem: warning: command not specified\n");
     } else {
 	session->command = value;
 	switch (session->command) {
@@ -691,7 +694,7 @@ static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
     /* verify address */
     entry = addr / sizeof(hypermem_entry_t);
     if (entry >= HYPERMEM_ENTRIES) {
-	fprintf(stderr, "hypermem: read from invalid address 0x%lx\n",
+	fprintf(stderr, "hypermem: error: read from invalid address 0x%lx\n",
 	        (long) addr);
 	return 0;
     }
@@ -708,8 +711,8 @@ static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
 
     /* other reads are in sessions */
     if (!state->sessions[entry].active) {
-	fprintf(stderr, "hypermem: attempt to read in inactive session %u\n",
-	        (unsigned) entry);
+	fprintf(stderr, "hypermem: warning: attempt to read "
+	        "in inactive session %u\n", (unsigned) entry);
 	return 0;
     }
     value = handle_session_read(state, &state->sessions[entry]);
@@ -734,7 +737,7 @@ static void hypermem_mem_write_internal(HyperMemState *state,
     /* verify address */
     entry = addr / sizeof(hypermem_entry_t);
     if (entry >= HYPERMEM_ENTRIES) {
-	fprintf(stderr, "hypermem: write to invalid address 0x%lx\n",
+	fprintf(stderr, "hypermem: error: write to invalid address 0x%lx\n",
 	        (long) addr);
 	return;
     }
@@ -743,13 +746,14 @@ static void hypermem_mem_write_internal(HyperMemState *state,
     if (entry == 0) {
         session_id = hypermem_session_from_address(mem_value);
 	if (!session_id) {
-	    fprintf(stderr, "hypermem: attempt to tear down session for "
-	            "invalid address 0x%lx\n", (long) mem_value);
+	    fprintf(stderr, "hypermem: warning: attempt to tear down session "
+	            "for invalid address 0x%lx\n", (long) mem_value);
 	    return;
 	}
 	if (!state->sessions[session_id].active) {
-	    fprintf(stderr, "hypermem: attempt to tear down inactive session "
-	            "%u for address 0x%lx\n", session_id, (long) mem_value);
+	    fprintf(stderr, "hypermem: warning: attempt to tear down inactive "
+	            "session %u for address 0x%lx\n",
+		    session_id, (long) mem_value);
 	    return;
 	}
 #ifdef HYPERMEM_DEBUG
@@ -763,8 +767,8 @@ static void hypermem_mem_write_internal(HyperMemState *state,
 
     /* other writes are in sessions */
     if (!state->sessions[entry].active) {
-	fprintf(stderr, "hypermem: attempt to write in inactive session %u\n",
-	        (unsigned) entry);
+	fprintf(stderr, "hypermem: warning: attempt to write in inactive "
+	        "session %u\n", (unsigned) entry);
 	return;
     }
     handle_session_write(state, &state->sessions[entry], mem_value);
@@ -801,7 +805,7 @@ static HyperMemPendingOperation *hypermem_find_pending_operation(
 
     /* no entries available is an error (it means the VM is misbehaving) */
     if (!opempty) {
-	fprintf(stderr, "hypermem: %s, too many pending operations\n",
+	fprintf(stderr, "hypermem: warning: %s, too many pending operations\n",
 	    is_write ? "write ignored" : "read failed");
 	return NULL;
     }
