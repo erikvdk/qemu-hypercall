@@ -1,6 +1,8 @@
 #ifndef HYPERMEM_EDFI_H
 #define HYPERMEM_EDFI_H
 
+#inlude <stdint.h>
+
 /* from llvm-apps: llvm/include/edfi/common.h */
 
 #ifndef PACKED
@@ -10,11 +12,15 @@
 #define EDFI_DFLIB_PATH_MAX                     (512)
 #define EDFI_CANARY_VALUE                       0xFF0A0011
 
+/* this can be redefined to force pointer size to 32 or 64 bit */
+#define POINTER(type) uint32_t
+
+/* EDFI context definitions. */
 typedef unsigned long long exec_count;
 typedef struct {
-    char *name;
-    int *bb_num_injected;
-    int *bb_num_candidates;
+    POINTER(char) name;
+    POINTER(int) bb_num_injected;
+    POINTER(int) bb_num_candidates;
 } fault_type_stats;
 
 typedef struct {
@@ -34,17 +40,19 @@ typedef struct {
     unsigned long long fault_time;
     unsigned long long start_time;
     unsigned long long total_faults;
-    fault_type_stats *fault_type_stats;
-    exec_count *bb_num_executions;
-    int *bb_num_faults;
+    POINTER(fault_type_stats) fault_type_stats;
+    POINTER(exec_count) bb_num_executions; /* canaries in first and last elements */
+    POINTER(int) bb_num_faults;
     unsigned int num_bbs;
     unsigned int num_fault_types;
     int no_svr_thread;
-    char *output_dir;
+    POINTER(char) output_dir;
     int num_requests_on_start;
     int verbosity;
     edfi_context_conf_t c;
     unsigned int canary_value2;
 } PACKED edfi_context_t;
+
+#undef POINTER
 
 #endif /* !defined(HYPERMEM_EDFI_H) */
