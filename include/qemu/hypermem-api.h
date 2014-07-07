@@ -25,6 +25,8 @@
  * - write module name pointer
  * - write a pointer to the EDFI context (note: physical address is stored so
  *   it must be pinned and pointers inside may not be changed afterwards)
+ * - write pointer offset used to translate pointers within the context
+ *   (normally 0xc0000000 for Linux, 0 otherwise)
  *
  * hypermem protocol - edfi dump all statistics
  * - write command identifier HYPERMEM_COMMAND_EDFI_DUMP_STATS

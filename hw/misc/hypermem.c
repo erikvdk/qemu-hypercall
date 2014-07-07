@@ -45,6 +45,7 @@ typedef struct HyperMemSessionState {
 	struct {
 	    hypermem_entry_t namelen;
 	    hypermem_entry_t nameptr;
+	    hypermem_entry_t contextptr;
 	} edfi_context_set;
 	struct {
 	    hypermem_entry_t namelen;
@@ -236,7 +237,8 @@ static HyperMemEdfiContext *edfi_context_find(HyperMemState *state,
 }
 
 static void edfi_context_set_with_name(HyperMemState *state, const char *name,
-                                       hypermem_entry_t contextptr) {
+                                       hypermem_entry_t contextptr,
+				       hypermem_entry_t ptroffset) {
     HyperMemEdfiContext *ec;
     hwaddr page_hwaddr;
     vaddr page_count, page_index, page_vaddr;
@@ -282,7 +284,7 @@ static void edfi_context_set_with_name(HyperMemState *state, const char *name,
 	    ec->bb_num_executions_hwaddr = NULL;
 	    return;
 	}
-	ec->bb_num_executions_hwaddr[page_index] = page_hwaddr;
+	ec->bb_num_executions_hwaddr[page_index] = page_hwaddr - ptroffset;
 	page_vaddr += TARGET_PAGE_SIZE;
     }
 }
@@ -305,7 +307,8 @@ static char *read_string(vaddr strptr, vaddr strlen) {
 
 static void edfi_context_set(HyperMemState *state, hypermem_entry_t nameptr,
                              hypermem_entry_t namelen,
-			     hypermem_entry_t contextptr) {
+			     hypermem_entry_t contextptr,
+			     hypermem_entry_t ptroffset) {
     char *name;
 
     /* read module name from VM */
@@ -313,7 +316,7 @@ static void edfi_context_set(HyperMemState *state, hypermem_entry_t nameptr,
     if (!name) return;
 
     /* now that we have the name, do the actual work */
-    edfi_context_set_with_name(state, name, contextptr);
+    edfi_context_set_with_name(state, name, contextptr, ptroffset);
 
     /* clean up */
     free(name);
@@ -540,9 +543,14 @@ static void command_edfi_context_set_write(HyperMemState *state,
 	session->command_state.edfi_context_set.nameptr = value;
 	session->state++;
 	break;
+    case 2:
+	session->command_state.edfi_context_set.contextptr = value;
+	session->state++;
+	break;
     default:
 	edfi_context_set(state, session->command_state.edfi_context_set.nameptr,
-	    session->command_state.edfi_context_set.namelen, value);
+	    session->command_state.edfi_context_set.namelen,
+	    session->command_state.edfi_context_set.contextptr, value);
 	hypermem_session_reset(session);
 	break;
     }
