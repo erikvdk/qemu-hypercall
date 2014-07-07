@@ -714,7 +714,7 @@ static void handle_session_write(HyperMemState *state,
 	 * handled immediately
 	 */
 	switch (session->command) {
-	case HYPERMEM_COMMAND_EDFI_DUMP_STATS_MODULE:
+	case HYPERMEM_COMMAND_EDFI_DUMP_STATS:
 	    edfi_dump_stats_all(state);
 	    hypermem_session_reset(session);
 	    break;
