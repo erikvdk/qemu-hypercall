@@ -331,6 +331,7 @@ static void *load_from_hwaddrs(vaddr viraddr, vaddr size, hwaddr *hwaddrs) {
     p = buffer;
     while (size > 0) {
 	chunk = TARGET_PAGE_SIZE - viraddr % TARGET_PAGE_SIZE;
+	if (chunk > size) chunk = size;
 	hwaddr = *hwaddrs + viraddr % TARGET_PAGE_SIZE;
 	cpu_physical_memory_read(hwaddr, p, chunk);
 	viraddr += chunk;
