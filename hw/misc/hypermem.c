@@ -382,16 +382,16 @@ static void edfi_dump_stats_module_with_context(HyperMemState *state,
 	    if (repeats == 1) {
 		logprintf(state, " %lu", (long) countrep);
 	    } else if (repeats != 0) {
-		logprintf(state, " %lux%lu", (long) countrep, repeats);
+		logprintf(state, " %lux%u", (long) countrep, repeats);
 	    }
 	    countrep = count;
 	    repeats = 1;
 	}
     }
     if (repeats == 1) {
-	logprintf(state, " %ld", (long) countrep);
+	logprintf(state, " %lu", (long) countrep);
     } else if (repeats != 0) { 
-	logprintf(state, " %dx%ld", repeats, (long) countrep);
+	logprintf(state, " %lux%u", (long) countrep, repeats);
     }
     logprintf(state, "\n");
 
