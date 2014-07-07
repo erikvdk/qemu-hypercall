@@ -1,7 +1,7 @@
 #ifndef HYPERMEM_EDFI_H
 #define HYPERMEM_EDFI_H
 
-#inlude <stdint.h>
+#include <stdint.h>
 
 /* from llvm-apps: llvm/include/edfi/common.h */
 
