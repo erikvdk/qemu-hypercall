@@ -332,8 +332,16 @@ static void *load_from_hwaddrs(vaddr viraddr, vaddr size, hwaddr *hwaddrs) {
     while (size > 0) {
 	chunk = TARGET_PAGE_SIZE - viraddr % TARGET_PAGE_SIZE;
 	if (chunk > size) chunk = size;
+
 	hwaddr = *hwaddrs + viraddr % TARGET_PAGE_SIZE;
-	cpu_physical_memory_read(hwaddr, p, chunk);
+	if (hwaddr < HYPERMEM_BASEADDR + HYPERMEM_SIZE &&
+	    hwaddr + chunk > HYPERMEM_BASEADDR) {
+	    fprintf(stderr, "hypermem: warning: data to be loaded overlaps "
+	            "with IO range (hwaddr=0x%lx, chunk=0x%lx)\n",
+		    (long) hwaddr, (long) chunk);
+	} else {
+	    cpu_physical_memory_read(hwaddr, p, chunk);
+	}
 	viraddr += chunk;
 	size -= chunk;
 	hwaddrs++;
