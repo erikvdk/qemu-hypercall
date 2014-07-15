@@ -239,9 +239,11 @@ static HyperMemEdfiContext *edfi_context_find(HyperMemState *state,
 static void edfi_context_set_with_name(HyperMemState *state, const char *name,
                                        hypermem_entry_t contextptr,
 				       hypermem_entry_t ptroffset) {
+    X86CPU *cpu = X86_CPU(current_cpu);
     HyperMemEdfiContext *ec;
     hwaddr page_hwaddr;
     vaddr page_count, page_index, page_vaddr;
+    int segindex;
 
     /* overwrite if we've seen this module before */
     ec = edfi_context_find(state, name);
@@ -275,18 +277,39 @@ static void edfi_context_set_with_name(HyperMemState *state, const char *name,
     if (!ec->bb_num_executions_hwaddr) return;
 
     page_vaddr = (vaddr) ec->context.bb_num_executions;
+
+    /* perform segment translation (cpu_get_phys_page_debug expects
+     * linear addresses)
+     */
+    segindex = R_DS;
+#ifdef HYPERMEM_DEBUG
+    printf("hypermem: edfi_context_set_with_name; &bb_num_executions=0x%lx, "
+	"base=0x%lx, limit=0x%lx\n", (long) ec->context.bb_num_executions,
+	cpu->env.segs[segindex].base, cpu->env.segs[segindex].limit);
+#endif
+    if (page_vaddr >= cpu->env.segs[segindex].limit) {
+	fprintf(stderr, "hypermem: warning: page_vaddr 0x%lx exceeds "
+		"segment limit 0x%lx\n", (long) page_vaddr,
+		(long) cpu->env.segs[segindex].limit);
+	goto fail;
+    }
+    page_vaddr += cpu->env.segs[segindex].base;
+
     page_vaddr -= page_vaddr % TARGET_PAGE_SIZE;
     for (page_index = 0; page_index < page_count; page_index++) {
 	page_hwaddr = cpu_get_phys_page_debug(current_cpu, page_vaddr);
 	if (page_hwaddr == -1) {
 	    fprintf(stderr, "hypermem: warning: EDFI context contains unmapped pages\n");
-	    free(ec->bb_num_executions_hwaddr);
-	    ec->bb_num_executions_hwaddr = NULL;
-	    return;
+	    goto fail;
 	}
 	ec->bb_num_executions_hwaddr[page_index] = page_hwaddr - ptroffset;
 	page_vaddr += TARGET_PAGE_SIZE;
     }
+    return;
+
+fail:
+    free(ec->bb_num_executions_hwaddr);
+    ec->bb_num_executions_hwaddr = NULL;
 }
 
 static char *read_string(vaddr strptr, vaddr strlen) {
