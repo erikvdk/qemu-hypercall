@@ -265,7 +265,7 @@ static void edfi_context_set_with_name(HyperMemState *state, const char *name,
 				       hypermem_entry_t ptroffset) {
     HyperMemEdfiContext *ec;
     hwaddr page_hwaddr;
-    vaddr page_count, page_index, page_vaddr;
+    vaddr contextptr_lin, page_count, page_index, page_vaddr;
 
     /* overwrite if we've seen this module before */
     ec = edfi_context_find(state, name);
@@ -278,7 +278,10 @@ static void edfi_context_set_with_name(HyperMemState *state, const char *name,
     }
 
     /* read EDFI context */
-    if (cpu_memory_rw_debug(current_cpu, contextptr, (uint8_t *) &ec->context,
+    if (!vaddr_to_laddr(contextptr, &contextptr_lin)) {
+	return;
+    }
+    if (cpu_memory_rw_debug(current_cpu, contextptr_lin, (uint8_t *) &ec->context,
 	sizeof(ec->context), 0) < 0) {
 	fprintf(stderr, "hypermem: warning: cannot read EDFI context\n");
 	return;
@@ -320,11 +323,15 @@ fail:
 
 static char *read_string(vaddr strptr, vaddr strlen) {
     char *str;
+    vaddr strptr_lin;
 
     str = CALLOC(strlen + 1, char);
     if (!str) return NULL;
 
-    if (cpu_memory_rw_debug(current_cpu, strptr, (uint8_t *) str,
+    if (!vaddr_to_laddr(strptr, &strptr_lin)) {
+	return;
+    }
+    if (cpu_memory_rw_debug(current_cpu, strptr_lin, (uint8_t *) str,
         strlen, 0) < 0) {
 	fprintf(stderr, "hypermem: warning: cannot read string\n");
 	free(str);
