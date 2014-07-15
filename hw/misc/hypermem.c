@@ -236,14 +236,36 @@ static HyperMemEdfiContext *edfi_context_find(HyperMemState *state,
     return NULL;
 }
 
+static int vaddr_to_laddr(vaddr ptr, vaddr *result) {
+    X86CPU *cpu = X86_CPU(current_cpu);
+    int segindex = R_DS;
+    
+    /* perform segment translation (cpu_get_phys_page_debug and
+     * cpu_memory_rw_debug expect linear addresses)
+     */
+#ifdef HYPERMEM_DEBUG
+    printf("hypermem: vaddr_to_laddr; &bb_num_executions=0x%lx, "
+	"base=0x%lx, limit=0x%lx\n", (long) ec->context.bb_num_executions,
+	(long) cpu->env.segs[segindex].base,
+	(long) cpu->env.segs[segindex].limit);
+#endif
+    if (ptr >= cpu->env.segs[segindex].limit) {
+	fprintf(stderr, "hypermem: warning: ptr 0x%lx exceeds "
+		"segment limit 0x%lx\n", (long) ptr,
+		(long) cpu->env.segs[segindex].limit);
+	*result = 0;
+	return 0;
+    }
+    *result = ptr + cpu->env.segs[segindex].base;
+    return 1;
+}
+
 static void edfi_context_set_with_name(HyperMemState *state, const char *name,
                                        hypermem_entry_t contextptr,
 				       hypermem_entry_t ptroffset) {
-    X86CPU *cpu = X86_CPU(current_cpu);
     HyperMemEdfiContext *ec;
     hwaddr page_hwaddr;
     vaddr page_count, page_index, page_vaddr;
-    int segindex;
 
     /* overwrite if we've seen this module before */
     ec = edfi_context_find(state, name);
@@ -276,26 +298,9 @@ static void edfi_context_set_with_name(HyperMemState *state, const char *name,
     ec->bb_num_executions_hwaddr = CALLOC(page_count, hwaddr);
     if (!ec->bb_num_executions_hwaddr) return;
 
-    page_vaddr = (vaddr) ec->context.bb_num_executions;
-
-    /* perform segment translation (cpu_get_phys_page_debug expects
-     * linear addresses)
-     */
-    segindex = R_DS;
-#ifdef HYPERMEM_DEBUG
-    printf("hypermem: edfi_context_set_with_name; &bb_num_executions=0x%lx, "
-	"base=0x%lx, limit=0x%lx\n", (long) ec->context.bb_num_executions,
-	(long) cpu->env.segs[segindex].base,
-	(long) cpu->env.segs[segindex].limit);
-#endif
-    if (page_vaddr >= cpu->env.segs[segindex].limit) {
-	fprintf(stderr, "hypermem: warning: page_vaddr 0x%lx exceeds "
-		"segment limit 0x%lx\n", (long) page_vaddr,
-		(long) cpu->env.segs[segindex].limit);
+    if (!vaddr_to_laddr((vaddr) ec->context.bb_num_executions, &page_vaddr) {
 	goto fail;
     }
-    page_vaddr += cpu->env.segs[segindex].base;
-
     page_vaddr -= page_vaddr % TARGET_PAGE_SIZE;
     for (page_index = 0; page_index < page_count; page_index++) {
 	page_hwaddr = cpu_get_phys_page_debug(current_cpu, page_vaddr);
