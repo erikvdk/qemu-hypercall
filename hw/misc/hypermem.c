@@ -285,7 +285,8 @@ static void edfi_context_set_with_name(HyperMemState *state, const char *name,
 #ifdef HYPERMEM_DEBUG
     printf("hypermem: edfi_context_set_with_name; &bb_num_executions=0x%lx, "
 	"base=0x%lx, limit=0x%lx\n", (long) ec->context.bb_num_executions,
-	cpu->env.segs[segindex].base, cpu->env.segs[segindex].limit);
+	(long) cpu->env.segs[segindex].base,
+	(long) cpu->env.segs[segindex].limit);
 #endif
     if (page_vaddr >= cpu->env.segs[segindex].limit) {
 	fprintf(stderr, "hypermem: warning: page_vaddr 0x%lx exceeds "
