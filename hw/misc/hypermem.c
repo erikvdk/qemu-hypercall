@@ -244,8 +244,8 @@ static int vaddr_to_laddr(vaddr ptr, vaddr *result) {
      * cpu_memory_rw_debug expect linear addresses)
      */
 #ifdef HYPERMEM_DEBUG
-    printf("hypermem: vaddr_to_laddr; &bb_num_executions=0x%lx, "
-	"base=0x%lx, limit=0x%lx\n", (long) ec->context.bb_num_executions,
+    printf("hypermem: vaddr_to_laddr; ptr=0x%lx, "
+	"base=0x%lx, limit=0x%lx\n", (long) ptr,
 	(long) cpu->env.segs[segindex].base,
 	(long) cpu->env.segs[segindex].limit);
 #endif
@@ -301,7 +301,7 @@ static void edfi_context_set_with_name(HyperMemState *state, const char *name,
     ec->bb_num_executions_hwaddr = CALLOC(page_count, hwaddr);
     if (!ec->bb_num_executions_hwaddr) return;
 
-    if (!vaddr_to_laddr((vaddr) ec->context.bb_num_executions, &page_vaddr) {
+    if (!vaddr_to_laddr((vaddr) ec->context.bb_num_executions, &page_vaddr)) {
 	goto fail;
     }
     page_vaddr -= page_vaddr % TARGET_PAGE_SIZE;
@@ -329,7 +329,7 @@ static char *read_string(vaddr strptr, vaddr strlen) {
     if (!str) return NULL;
 
     if (!vaddr_to_laddr(strptr, &strptr_lin)) {
-	return;
+	return NULL;
     }
     if (cpu_memory_rw_debug(current_cpu, strptr_lin, (uint8_t *) str,
         strlen, 0) < 0) {
