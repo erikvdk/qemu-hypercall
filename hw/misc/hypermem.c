@@ -278,6 +278,7 @@ static void edfi_context_set_with_name(HyperMemState *state, const char *name,
     }
 
     /* read EDFI context */
+    cpu_synchronize_state(current_cpu);
     if (!vaddr_to_laddr(contextptr, &contextptr_lin)) {
 	return;
     }
@@ -331,6 +332,7 @@ static char *read_string(vaddr strptr, vaddr strlen) {
     if (!vaddr_to_laddr(strptr, &strptr_lin)) {
 	return NULL;
     }
+    cpu_synchronize_state(current_cpu);
     if (cpu_memory_rw_debug(current_cpu, strptr_lin, (uint8_t *) str,
         strlen, 0) < 0) {
 	fprintf(stderr, "hypermem: warning: cannot read string\n");
