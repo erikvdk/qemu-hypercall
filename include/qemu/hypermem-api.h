@@ -59,6 +59,10 @@
  * - write command identifier HYPERMEM_COMMAND_PRINT
  * - write a length of the string in bytes, excluding terminator
  * - write string data, one hypermem_entry_t unit at a time
+ *
+ * * hypermem protocol - set_cr3
+ * - write command identifier HYPERMEM_COMMAND_SET_CR3
+ * - write the current process cr3 value, to be used for the rest of the session
  */
  
  #include <stdint.h>
@@ -79,6 +83,7 @@ typedef uint32_t hypermem_entry_t;
 #define HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET	5
 #define HYPERMEM_COMMAND_EDFI_DUMP_STATS	6
 #define HYPERMEM_COMMAND_EDFI_DUMP_STATS_MODULE	7
+#define HYPERMEM_COMMAND_SET_CR3	8
 
 #define HYPERCALL_NOP_REPLY	0x4e6f7021
 

@@ -64,6 +64,9 @@ typedef struct HyperMemSessionState {
 	    char *strdata;
 	} print;
     } command_state;
+
+    /* the process_cr3 in case we need this to do page translation */
+    uint32_t process_cr3;
 } HyperMemSessionState;
 
 typedef struct HyperMemPendingOperation {
@@ -131,6 +134,20 @@ static void logprintf(HyperMemState *state, const char *fmt, ...) {
     va_start(args, fmt);
     logvprintf(state, fmt, args);
     va_end(args);
+}
+
+static void swap_cr3(HyperMemSessionState *session) {
+    X86CPU *cpu = X86_CPU(current_cpu);
+    uint32_t tmp;
+
+    /* If we don't have a process_cr3 to swap we do nothing */
+    
+    cpu_synchronize_state(current_cpu);
+    if (session->process_cr3 == 0)
+        return;
+    tmp = cpu->env.cr[3];
+    cpu->env.cr[3] = session->process_cr3;
+    session->process_cr3 = tmp;
 }
 
 #define CALLOC(count, type) ((type *) calloc_checked((count), sizeof(type), __FILE__, __LINE__))
@@ -278,7 +295,6 @@ static void edfi_context_set_with_name(HyperMemState *state, const char *name,
     }
 
     /* read EDFI context */
-    cpu_synchronize_state(current_cpu);
     if (!vaddr_to_laddr(contextptr, &contextptr_lin)) {
 	return;
     }
@@ -332,7 +348,6 @@ static char *read_string(vaddr strptr, vaddr strlen) {
     if (!vaddr_to_laddr(strptr, &strptr_lin)) {
 	return NULL;
     }
-    cpu_synchronize_state(current_cpu);
     if (cpu_memory_rw_debug(current_cpu, strptr_lin, (uint8_t *) str,
         strlen, 0) < 0) {
 	fprintf(stderr, "hypermem: warning: cannot read string\n");
@@ -586,9 +601,11 @@ static void command_edfi_context_set_write(HyperMemState *state,
 	session->state++;
 	break;
     default:
+        swap_cr3 (session);
 	edfi_context_set(state, session->command_state.edfi_context_set.nameptr,
 	    session->command_state.edfi_context_set.namelen,
 	    session->command_state.edfi_context_set.contextptr, value);
+        swap_cr3 (session);
 	hypermem_session_reset(session);
 	break;
     }
@@ -604,8 +621,10 @@ static void command_edfi_dump_stats_module(HyperMemState *state,
 	session->state++;
 	break;
     default:
+        swap_cr3(session);
 	edfi_dump_stats_module(state, value,
 	    session->command_state.edfi_dump_stats_module.namelen);
+        swap_cr3(session);
 	hypermem_session_reset(session);
 	break;
     }
@@ -642,7 +661,9 @@ static void command_edfi_faultindex_get_write(HyperMemState *state,
 	session->state++;
 	break;
     default:
+        swap_cr3(session);
 	command_bad_write(state, session, value);
+        swap_cr3(session);
 	break;
     }
 }
@@ -661,8 +682,10 @@ static void command_fault_write(HyperMemState *state,
 	session->state++;
 	break;
     default:
+        swap_cr3(session);
 	log_fault(state, session->command_state.fault.nameptr,
 	    session->command_state.fault.namelen, value);
+        swap_cr3(session);
 	hypermem_session_reset(session);
 	break;
     }
@@ -711,6 +734,14 @@ static void command_print_write(HyperMemState *state,
     }
 }
 
+static void command_set_cr3(HyperMemState *state,
+                            HyperMemSessionState *session,
+                            hypermem_entry_t value)
+{
+    session->process_cr3 = value;
+    hypermem_session_reset(session);
+}
+
 static hypermem_entry_t handle_session_read(HyperMemState *state,
                                             HyperMemSessionState *session)
 {
@@ -748,6 +779,7 @@ static void handle_session_write(HyperMemState *state,
     case HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET: command_edfi_faultindex_get_write(state, session, value); return;
     case HYPERMEM_COMMAND_FAULT: command_fault_write(state, session, value); return;
     case HYPERMEM_COMMAND_PRINT: command_print_write(state, session, value); return;
+    case HYPERMEM_COMMAND_SET_CR3: command_set_cr3(state, session, value); return;
     default: command_bad_write(state, session, value); return;
     }
 
