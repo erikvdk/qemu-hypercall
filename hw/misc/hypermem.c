@@ -30,7 +30,6 @@
 #define HYPERMEM_PRIO		3 /* 1 and 2 used by video memory */
 #define HYPERMEM_PENDING_MAX	HYPERMEM_ENTRIES
 
-#define HYPERMEM_DEBUG
 
 #define TYPE_HYPERMEM "hypermem"
 #define HYPERMEM(obj) OBJECT_CHECK(HyperMemState, (obj), TYPE_HYPERMEM)
@@ -497,8 +496,14 @@ static hypermem_entry_t edfi_faultindex_get_with_name(HyperMemState *state,
                                                       const char *name) {
     int bbindex;
     const char *faultspec, *next;
-    size_t namelen = strlen(name);
+    size_t namelen;
+    char *tmp;
 
+    tmp = strchr(name, '@');
+    if (tmp != NULL)
+        *tmp = 0;
+
+    namelen = strlen(name);
     /* faultspec parameter present? */
     if (!state->faultspec) {
 	logprintf(state, "edfi_faultindex_get name=%s "
