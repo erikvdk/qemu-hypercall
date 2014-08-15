@@ -101,6 +101,7 @@ typedef struct HyperMemState
 
     /* open handles */
     FILE *logfile;
+    int logfile_partialline;
 
     /* EDFI contexts (linked list) */
     HyperMemEdfiContext *edfi_context;
@@ -121,8 +122,35 @@ static Property hypermem_props[] = {
 };
 
 static void logvprintf(HyperMemState *state, const char *fmt, va_list args) {
+    int newline;
+    struct timeval time = {};
+    struct tm timefields = {};
+
+    if (!fmt || !fmt[0]) return;
+
+    /* write time when at start/after newline */
+    if (!state->logfile_partialline) {
+	if (gettimeofday(&time, NULL) < 0) {
+	    perror("gettimofday failed");
+	    exit(-1);
+	}
+	if (!localtime_r(&time->tv_sec, &timefields)) {
+	    perror("localtime_r failed");
+	    exit(-1);
+	}
+	vfprintf(state->logfile, "[%.4d-%.2d-%.2d %2d:%.2d:%.2d.%.6d] ",
+	    timefields.tm_year + 1900, timefields.tm_mon + 1,
+	    timefields.tm_mday, timefields.tm_hour, timefields.tm_min,
+	    timefields.tm_sec, time.tv_usec);
+    }
+
+    /* write text to be logged */
     vfprintf(state->logfile, fmt, args);
-    if (state->flushlog && strchr(fmt, '\n')) fflush(state->logfile);
+
+    /* if requested, flush after newline  */
+    newline = fmt[strlen(fmt) - 1] == '\n';
+    if (state->flushlog && newline) fflush(state->logfile);
+    state->logfile_partialline = !newline;
 }
 
 static void logprintf(HyperMemState *state, const char *fmt, ...)
