@@ -109,6 +109,12 @@ typedef struct HyperMemState
     /* EDFI contexts (linked list) */
     HyperMemEdfiContext *edfi_context;
 
+    /* fault reporting aggregation */
+    hypermem_entry_t fault_bbindex;
+    unsigned long fault_count;
+    char *fault_name;
+    int fault_noflush;
+
     /* session state */
     unsigned session_next;
     HyperMemSessionState sessions[HYPERMEM_ENTRIES];
@@ -116,6 +122,8 @@ typedef struct HyperMemState
     /* state for partial reads and writes */
     HyperMemPendingOperation pending[HYPERMEM_PENDING_MAX];
 } HyperMemState;
+
+static void flush_fault(HyperMemState *state);
 
 static Property hypermem_props[] = {
     DEFINE_PROP_STRING("logpath", HyperMemState, logpath),
@@ -130,6 +138,8 @@ static void logvprintf(HyperMemState *state, const char *fmt, va_list args) {
     struct tm timefields = {};
 
     if (!fmt || !fmt[0]) return;
+
+    fault_flush(state);
 
     /* write time when at start/after newline */
     if (!state->logfile_partialline) {
@@ -587,6 +597,27 @@ static hypermem_entry_t edfi_faultindex_get(HyperMemState *state,
     return bbindex;
 }
 
+#define FAULT_COUNT_DIRECT_TO_LOG 3
+
+static void flush_fault(HyperMemState *state) {
+    if (!state->fault_name) return;
+
+    if (state->fault_noflush) return;
+
+    if (state->fault_count > FAULT_COUNT_DIRECT_TO_LOG) {
+	state->fault_noflush = 1;
+	logprintf(state, "fault name=%s bbindex=0x%lx count=%ld\n",
+	    state->fault_name, (long) state->fault_bbindex,
+	    state->fault_count - FAULT_COUNT_DIRECT_TO_LOG);
+	state->fault_noflush = 0;
+    }
+
+    free(state->fault_name);
+    state->fault_name = NULL;
+    state->fault_bbindex = 0;
+    state->fault_count = 0;
+}
+
 static void log_fault(HyperMemState *state, hypermem_entry_t nameptr,
                              hypermem_entry_t namelen,
 			     hypermem_entry_t bbindex) {
@@ -596,8 +627,28 @@ static void log_fault(HyperMemState *state, hypermem_entry_t nameptr,
     name = read_string(nameptr, namelen);
     if (!name) return;
 
+    if (state->fault_name && (
+	strcmp(state->fault_name, name) != 0 || state->fault_bbindex != bbindex)) {
+	flush_fault(state);
+    }
+
+    if (!state->fault_name) {
+	state->fault_name = name;
+	state->fault_bbindex = bbindex;
+    } else {
+	free(name);
+    }
+
     /* log fault */
-    logprintf(state, "fault name=%s bbindex=0x%lx\n", name, (long) bbindex);
+    state->fault_count++;
+    if (state->fault_count <= FAULT_COUNT_DIRECT_TO_LOG) {
+	assert(!state->fault_noflush);
+	state->fault_noflush = 1;
+	logprintf(state, "fault name=%s bbindex=0x%lx\n",
+	    state->fault_name, (long) state->fault_bbindex,
+	    state->fault_count - FAULT_COUNT_DIRECT_TO_LOG);
+	state->fault_noflush = 0;
+    }
 
     /* clean up */
     free(name);
