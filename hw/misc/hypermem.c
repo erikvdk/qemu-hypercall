@@ -101,6 +101,7 @@ typedef struct HyperMemState
 
     /* open handles */
     FILE *logfile;
+    int logfile_driveindex;
     int logfile_partialline;
 
     /* EDFI contexts (linked list) */
@@ -1049,6 +1050,21 @@ const MemoryRegionOps hypermem_mem_ops = {
     },
 };
 
+static int log_drive_options(QemuOpts *opts, void *opaque) {
+    const char *file;
+    HyperMemState *s = opaque;
+
+    if (!opts) return 0;
+
+    file = qemu_opt_get(opts, "file");
+    if (!file) return 0;
+
+    logprintf(s, "drive[%d]={ file: \"%s\" }\n", s->logfile_driveindex, file);
+    s->logfile_driveindex++;
+
+    return 0;
+}
+
 static void hypermem_realizefn(DeviceState *dev, Error **errp)
 {
     ISADevice *isadev = ISA_DEVICE(dev);
@@ -1075,6 +1091,7 @@ static void hypermem_realizefn(DeviceState *dev, Error **errp)
     if (s->logpath) logprintf(s, "hypermem-logpath=\"%s\"\n", s->logpath);
     logprintf(s, "hypermem-flushlog=%s\n", s->flushlog ? "true" : "false");
     if (s->faultspec) logprintf(s, "hypermem-faultspec=\"%s\"\n", s->faultspec);
+    qemu_opts_foreach(qemu_find_opts("drive"), log_drive_options, s, 0);
 
     /* reserve memory area */
 #ifdef HYPERMEM_DEBUG
