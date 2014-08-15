@@ -139,7 +139,7 @@ static void logvprintf(HyperMemState *state, const char *fmt, va_list args) {
 
     if (!fmt || !fmt[0]) return;
 
-    fault_flush(state);
+    flush_fault(state);
 
     /* write time when at start/after newline */
     if (!state->logfile_partialline) {
@@ -645,8 +645,7 @@ static void log_fault(HyperMemState *state, hypermem_entry_t nameptr,
 	assert(!state->fault_noflush);
 	state->fault_noflush = 1;
 	logprintf(state, "fault name=%s bbindex=0x%lx\n",
-	    state->fault_name, (long) state->fault_bbindex,
-	    state->fault_count - FAULT_COUNT_DIRECT_TO_LOG);
+	    state->fault_name, (long) state->fault_bbindex);
 	state->fault_noflush = 0;
     }
 
