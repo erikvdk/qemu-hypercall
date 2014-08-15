@@ -18,6 +18,8 @@
 #include "hw/i386/pc.h"
 #include "sysemu/kvm.h"
 #include "hw/qdev.h"
+#include "qemu/config-file.h"
+#include "qemu/option.h"
 
 #include "helper.h"
 #include "exec/softmmu_exec.h"
