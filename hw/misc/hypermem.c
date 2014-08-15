@@ -134,14 +134,14 @@ static void logvprintf(HyperMemState *state, const char *fmt, va_list args) {
 	    perror("gettimofday failed");
 	    exit(-1);
 	}
-	if (!localtime_r(&time->tv_sec, &timefields)) {
+	if (!localtime_r(&time.tv_sec, &timefields)) {
 	    perror("localtime_r failed");
 	    exit(-1);
 	}
-	vfprintf(state->logfile, "[%.4d-%.2d-%.2d %2d:%.2d:%.2d.%.6d] ",
+	fprintf(state->logfile, "[%.4d-%.2d-%.2d %2d:%.2d:%.2d.%.6d] ",
 	    timefields.tm_year + 1900, timefields.tm_mon + 1,
 	    timefields.tm_mday, timefields.tm_hour, timefields.tm_min,
-	    timefields.tm_sec, time.tv_usec);
+	    timefields.tm_sec, (int) time.tv_usec);
     }
 
     /* write text to be logged */
