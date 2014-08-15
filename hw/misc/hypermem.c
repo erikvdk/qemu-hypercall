@@ -1072,6 +1072,9 @@ static void hypermem_realizefn(DeviceState *dev, Error **errp)
     } else {
 	s->logfile = stdout;
     }
+    if (s->logpath) logprintf(s, "hypermem-logpath=\"%s\"\n", s->logpath);
+    logprintf(s, "hypermem-flushlog=%s\n", s->flushlog ? "true" : "false");
+    if (s->faultspec) logprintf(s, "hypermem-faultspec=\"%s\"\n", s->faultspec);
 
     /* reserve memory area */
 #ifdef HYPERMEM_DEBUG
