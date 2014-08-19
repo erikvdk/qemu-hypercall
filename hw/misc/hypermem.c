@@ -648,9 +648,6 @@ static void log_fault(HyperMemState *state, hypermem_entry_t nameptr,
 	    state->fault_name, (long) state->fault_bbindex);
 	state->fault_noflush = 0;
     }
-
-    /* clean up */
-    free(name);
 }
 
 static hypermem_entry_t command_bad_read(HyperMemState *state,
