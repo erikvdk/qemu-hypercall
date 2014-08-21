@@ -540,11 +540,11 @@ static hypermem_entry_t edfi_faultindex_get_with_name(HyperMemState *state,
     size_t namelen;
     char *tmp;
 
+    /* remove instance specification from module name */
     tmp = strchr(name, '@');
     if (tmp != NULL)
         *tmp = 0;
 
-    namelen = strlen(name);
     /* faultspec parameter present? */
     if (!state->faultspec) {
 	logprintf(state, "edfi_faultindex_get name=%s "
@@ -552,7 +552,13 @@ static hypermem_entry_t edfi_faultindex_get_with_name(HyperMemState *state,
 	return 0;
     }
 
+    /* remove comment (=path:line of fault) from fault specification */
+    tmp = strchr(state->faultspec, '@');
+    if (tmp != NULL)
+        *tmp = 0;
+
     /* find a matching pair in faultspec */
+    namelen = strlen(name);
     faultspec = state->faultspec;
     while (*faultspec) {
         /* look for delimiter at end of module name */
