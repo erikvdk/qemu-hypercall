@@ -632,7 +632,7 @@ static void flush_fault(struct logstate *state) {
 
     if (state->fault_count > FAULT_COUNT_DIRECT_TO_LOG) {
 	state->fault_noflush = 1;
-	logprintf(state, "fault name=%s bbindex=0x%lx count=%ld\n",
+	logprintf_internal(state, "fault name=%s bbindex=0x%lx count=%ld\n",
 	    state->fault_name, (long) state->fault_bbindex,
 	    state->fault_count - FAULT_COUNT_DIRECT_TO_LOG);
 	state->fault_noflush = 0;
@@ -1154,10 +1154,10 @@ static void hypermem_realizefn(DeviceState *dev, Error **errp)
 	printf("hypermem: logging to stdout\n");
     }
 #endif
-    global_logstate = state->logstate =
+    global_logstate = s->logstate =
 	(struct logstate *) calloc(1, sizeof(struct logstate));
-    state->logstate->flushlog = s->flushlog;
-    if (!state->logstate) {
+    s->logstate->flushlog = s->flushlog;
+    if (!s->logstate) {
 	fprintf(stderr, "error: hypermem: "
 	    "cannot allocate memory for log state\n");
 	exit(-1);
