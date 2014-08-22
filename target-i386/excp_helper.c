@@ -90,8 +90,6 @@ static int check_exception(CPUX86State *env, int intno, int *error_code)
  * env->eip value AFTER the interrupt instruction. It is only relevant if
  * is_int is TRUE.
  */
-void (* log_interrupt)(int intno, int intno_orig);
- 
 static void QEMU_NORETURN raise_interrupt2(CPUX86State *env, int intno,
                                            int is_int, int error_code,
                                            int next_eip_addend)
@@ -103,7 +101,7 @@ static void QEMU_NORETURN raise_interrupt2(CPUX86State *env, int intno,
         cpu_svm_check_intercept_param(env, SVM_EXIT_EXCP_BASE + intno,
                                       error_code);
         intno = check_exception(env, intno, &error_code);
-	if (log_interrupt) log_interrupt(intno, intno_orig);
+	if (log_interrupt) log_interrupt(intno);
     } else {
         cpu_svm_check_intercept_param(env, SVM_EXIT_SWINT, 0);
     }

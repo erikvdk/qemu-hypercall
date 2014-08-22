@@ -104,7 +104,6 @@ static struct logstate {
 
     /* interrupt reporting */
     uint32_t interrupts;
-    uint32_t interrupts_orig;
 } *global_logstate;
 
 typedef struct HyperMemState
@@ -1227,29 +1226,17 @@ static void hypermem_cleanup(void) {
     logprintf_internal(global_logstate, "QEMU exiting\n");
 }
 
-static void hypermem_log_interrupt(int intno, int intno_orig) {
-    int new = 0;
-
+static void hypermem_log_interrupt(int intno) {
     if (!global_logstate || !global_logstate->logfile) return;
 
-    if (intno < sizeof(global_logstate->interrupts) * 8 &&
-	!((1 << intno) & global_logstate->interrupts)) {
-	global_logstate->interrupts |= (1 << intno);
-	new = 1;
+    if (intno >= sizeof(global_logstate->interrupts) * 8 ||
+	((1 << intno) & global_logstate->interrupts)) {
+	return;
     }
+    global_logstate->interrupts |= (1 << intno);
 
-    if (intno_orig < sizeof(global_logstate->interrupts_orig) * 8 &&
-	!((1 << intno_orig) & global_logstate->interrupts_orig)) {
-	global_logstate->interrupts_orig |= (1 << intno_orig);
-	new = 1;
-    }
-
-    if (!new) return;
-
-    logprintf_internal(global_logstate, "Interrupt %d -> %d\n", intno_orig, intno);
+    logprintf_internal(global_logstate, "Interrupt %d\n", intno);
 }
-
-extern void (* log_interrupt)(int intno, int intno_orig);
 
 static void hypermem_register_types(void)
 {
