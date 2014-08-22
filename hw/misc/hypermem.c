@@ -89,6 +89,12 @@ typedef struct HyperMemEdfiContext {
     hwaddr *bb_num_executions_hwaddr;
 } HyperMemEdfiContext;
 
+static struct logstate {
+    FILE *logfile;
+    int logfile_partialline;
+    bool flushlog;
+} *global_logstate;
+
 typedef struct HyperMemState
 {
     ISADevice parent_obj;
@@ -101,10 +107,9 @@ typedef struct HyperMemState
     /* QEMU objects */
     MemoryRegion io;
 
-    /* open handles */
-    FILE *logfile;
+    /* logging */
+    struct logstate *logstate;
     int logfile_driveindex;
-    int logfile_partialline;
 
     /* EDFI contexts (linked list) */
     HyperMemEdfiContext *edfi_context;
@@ -132,7 +137,7 @@ static Property hypermem_props[] = {
     DEFINE_PROP_END_OF_LIST()
 };
 
-static void logvprintf(HyperMemState *state, const char *fmt, va_list args) {
+static void logvprintf_internal(struct logstate *state, const char *fmt, va_list args) {
     int newline;
     struct timeval time = {};
     struct tm timefields = {};
@@ -164,6 +169,20 @@ static void logvprintf(HyperMemState *state, const char *fmt, va_list args) {
     newline = fmt[strlen(fmt) - 1] == '\n';
     if (state->flushlog && newline) fflush(state->logfile);
     state->logfile_partialline = !newline;
+}
+
+static void logprintf_internal(struct logstate *state, const char *fmt, ...)
+    __attribute__ ((__format__ (__printf__, 2, 3)));
+
+static void logprintf_internal(struct logstate *state, const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    logvprintf_internal(state, fmt, args);
+    va_end(args);
+}
+
+static void logvprintf(HyperMemState *state, const char *fmt, va_list args) {
+    logvprintf_internal(state->logstate, fmt, args);
 }
 
 static void logprintf(HyperMemState *state, const char *fmt, ...)
@@ -1134,14 +1153,22 @@ static void hypermem_realizefn(DeviceState *dev, Error **errp)
 	printf("hypermem: logging to stdout\n");
     }
 #endif
+    global_logstate = state->logstate =
+	(struct logstate *) calloc(1, sizeof(struct logstate));
+    state->logstate->flushlog = s->flushlog;
+    if (!state->logstate) {
+	fprintf(stderr, "error: hypermem: "
+	    "cannot allocate memory for log state\n");
+	exit(-1);
+    }
     if (s->logpath) {
-	s->logfile = fopen(s->logpath, "w");
-	if (!s->logfile) {
+	s->logstate->logfile = fopen(s->logpath, "w");
+	if (!s->logstate->logfile) {
 		perror("hypermem: could not open log file");
 		exit(-1);
 	}
     } else {
-	s->logfile = stdout;
+	s->logstate->logfile = stdout;
     }
     if (s->logpath) logprintf(s, "hypermem-logpath=\"%s\"\n", s->logpath);
     logprintf(s, "hypermem-flushlog=%s\n", s->flushlog ? "true" : "false");
@@ -1181,12 +1208,18 @@ static const TypeInfo hypermem_info = {
     .class_init    = hypermem_class_initfn,
 };
 
+static void hypermem_cleanup(void) {
+    if (!global_logstate || global_logstate->logfile) return;
+    logprintf_internal(global_logstate, "QEMU exiting\n");
+}
+
 static void hypermem_register_types(void)
 {
 #ifdef HYPERMEM_DEBUG
     printf("hypermem: registering type\n");
 #endif
     type_register_static(&hypermem_info);
+    atexit(hypermem_cleanup);
 }
 
 type_init(hypermem_register_types)
