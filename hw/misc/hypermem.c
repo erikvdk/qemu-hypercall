@@ -1219,7 +1219,7 @@ static const TypeInfo hypermem_info = {
 };
 
 static void hypermem_cleanup(void) {
-    if (!global_logstate || global_logstate->logfile) return;
+    if (!global_logstate || !global_logstate->logfile) return;
     logprintf_internal(global_logstate, "QEMU exiting\n");
 }
 
