@@ -90,9 +90,16 @@ typedef struct HyperMemEdfiContext {
 } HyperMemEdfiContext;
 
 static struct logstate {
+    /* log file */
     FILE *logfile;
     int logfile_partialline;
     bool flushlog;
+
+    /* fault reporting aggregation */
+    hypermem_entry_t fault_bbindex;
+    unsigned long fault_count;
+    char *fault_name;
+    int fault_noflush;
 } *global_logstate;
 
 typedef struct HyperMemState
@@ -114,12 +121,6 @@ typedef struct HyperMemState
     /* EDFI contexts (linked list) */
     HyperMemEdfiContext *edfi_context;
 
-    /* fault reporting aggregation */
-    hypermem_entry_t fault_bbindex;
-    unsigned long fault_count;
-    char *fault_name;
-    int fault_noflush;
-
     /* session state */
     unsigned session_next;
     HyperMemSessionState sessions[HYPERMEM_ENTRIES];
@@ -128,7 +129,7 @@ typedef struct HyperMemState
     HyperMemPendingOperation pending[HYPERMEM_PENDING_MAX];
 } HyperMemState;
 
-static void flush_fault(HyperMemState *state);
+static void flush_fault(struct logstate *state);
 
 static Property hypermem_props[] = {
     DEFINE_PROP_STRING("logpath", HyperMemState, logpath),
@@ -624,7 +625,7 @@ static hypermem_entry_t edfi_faultindex_get(HyperMemState *state,
 
 #define FAULT_COUNT_DIRECT_TO_LOG 3
 
-static void flush_fault(HyperMemState *state) {
+static void flush_fault(struct logstate *state) {
     if (!state->fault_name) return;
 
     if (state->fault_noflush) return;
@@ -643,7 +644,7 @@ static void flush_fault(HyperMemState *state) {
     state->fault_count = 0;
 }
 
-static void log_fault(HyperMemState *state, hypermem_entry_t nameptr,
+static void log_fault(struct logstate *state, hypermem_entry_t nameptr,
                              hypermem_entry_t namelen,
 			     hypermem_entry_t bbindex) {
     char *name;
@@ -669,7 +670,7 @@ static void log_fault(HyperMemState *state, hypermem_entry_t nameptr,
     if (state->fault_count <= FAULT_COUNT_DIRECT_TO_LOG) {
 	assert(!state->fault_noflush);
 	state->fault_noflush = 1;
-	logprintf(state, "fault name=%s bbindex=0x%lx\n",
+	logprintf_internal(state, "fault name=%s bbindex=0x%lx\n",
 	    state->fault_name, (long) state->fault_bbindex);
 	state->fault_noflush = 0;
     }
@@ -793,7 +794,7 @@ static void command_fault_write(HyperMemState *state,
 	break;
     default:
         swap_cr3(session);
-	log_fault(state, session->command_state.fault.nameptr,
+	log_fault(state->logstate, session->command_state.fault.nameptr,
 	    session->command_state.fault.namelen, value);
         swap_cr3(session);
 	hypermem_session_reset(session);
