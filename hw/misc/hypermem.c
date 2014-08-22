@@ -99,6 +99,7 @@ static struct logstate {
     hypermem_entry_t fault_bbindex;
     unsigned long fault_count;
     char *fault_name;
+    struct timeval fault_time;
     int fault_noflush;
 } *global_logstate;
 
@@ -149,9 +150,13 @@ static void logvprintf_internal(struct logstate *state, const char *fmt, va_list
 
     /* write time when at start/after newline */
     if (!state->logfile_partialline) {
-	if (gettimeofday(&time, NULL) < 0) {
-	    perror("gettimofday failed");
-	    exit(-1);
+	if (state->fault_noflush) {
+	    time - state->fault_time;
+	} else {
+	    if (gettimeofday(&time, NULL) < 0) {
+		perror("gettimofday failed");
+		exit(-1);
+	    }
 	}
 	if (!localtime_r(&time.tv_sec, &timefields)) {
 	    perror("localtime_r failed");
@@ -667,6 +672,10 @@ static void log_fault(struct logstate *state, hypermem_entry_t nameptr,
 
     /* log fault */
     state->fault_count++;
+    if (gettimeofday(&state->fault_time, NULL) < 0) {
+	perror("gettimofday failed");
+	exit(-1);
+    }
     if (state->fault_count <= FAULT_COUNT_DIRECT_TO_LOG) {
 	assert(!state->fault_noflush);
 	state->fault_noflush = 1;
