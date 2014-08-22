@@ -151,7 +151,7 @@ static void logvprintf_internal(struct logstate *state, const char *fmt, va_list
     /* write time when at start/after newline */
     if (!state->logfile_partialline) {
 	if (state->fault_noflush) {
-	    time - state->fault_time;
+	    time = state->fault_time;
 	} else {
 	    if (gettimeofday(&time, NULL) < 0) {
 		perror("gettimofday failed");
