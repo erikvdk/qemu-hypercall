@@ -55,4 +55,14 @@ typedef struct {
 
 #undef POINTER
 
+/* Structure that stores all the info needed to register a guest process EDFI context */
+typedef struct HyperMemEdfiContext {
+    struct HyperMemEdfiContext *next;
+
+    char *name;
+    edfi_context_t context;
+    hwaddr *bb_num_executions_hwaddr;
+} HyperMemEdfiContext;
+
+
 #endif /* !defined(HYPERMEM_EDFI_H) */
