@@ -345,6 +345,26 @@ static void command_set_cr3(HyperMemState *state,
     hypermem_session_reset(session);
 }
 
+static void command_magic_context_set_write(HyperMemState *state,
+                            HyperMemSessionState *session,
+                            hypermem_entry_t value)
+{
+    /* TODO: Fill in the command for initialising the magic context set */
+}
+
+static void command_magic_st(HyperMemState *state,
+                            HyperMemSessionState *session,
+                            hypermem_entry_t value)
+{
+    HyperMemMagicContext *mc;
+
+    mc = state->magic_context;
+
+    /* spawn hyperst_client */
+    start_hyperst_client(state, state->hyperst, mc->name);
+}
+
+
 static hypermem_entry_t handle_session_read(HyperMemState *state,
                                             HyperMemSessionState *session)
 {
@@ -383,6 +403,8 @@ static void handle_session_write(HyperMemState *state,
     case HYPERMEM_COMMAND_FAULT: command_fault_write(state, session, value); return;
     case HYPERMEM_COMMAND_PRINT: command_print_write(state, session, value); return;
     case HYPERMEM_COMMAND_SET_CR3: command_set_cr3(state, session, value); return;
+    case HYPERMEM_COMMAND_MAGIC_CONTEXT_SET: command_magic_context_set_write(state, session, value); return;
+    case HYPERMEM_COMMAND_MAGIC_ST: command_magic_st(state, session, value); return;
     default: command_bad_write(state, session, value); return;
     }
 
