@@ -101,7 +101,8 @@ static void QEMU_NORETURN raise_interrupt2(CPUX86State *env, int intno,
         cpu_svm_check_intercept_param(env, SVM_EXIT_EXCP_BASE + intno,
                                       error_code);
         intno = check_exception(env, intno, &error_code);
-	if (log_interrupt) log_interrupt(intno);
+        if (log_interrupt)
+            log_interrupt(intno_orig);
     } else {
         cpu_svm_check_intercept_param(env, SVM_EXIT_SWINT, 0);
     }
