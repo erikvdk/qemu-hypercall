@@ -349,21 +349,53 @@ static void command_magic_context_set_write(HyperMemState *state,
                             HyperMemSessionState *session,
                             hypermem_entry_t value)
 {
-    /* TODO: Fill in the command for initialising the magic context set */
+    switch (session->state) {
+    case 0:
+        session->command_state.magic_context_set.namelen = value;
+        session->state++;
+        break;
+    case 1:
+        session->command_state.magic_context_set.nameptr = value;
+        session->state++;
+        break;
+    case 2:
+        session->command_state.magic_context_set.contextptr = value;
+        session->state++;
+        break;
+    default:
+        swap_cr3 (session);
+        magic_context_set(state,
+                session->command_state.magic_context_set.nameptr,
+                session->command_state.magic_context_set.namelen,
+                session->command_state.magic_context_set.contextptr,
+                value);
+        swap_cr3 (session);
+        hypermem_session_reset(session);
+	break;
+    }
+
 }
 
-static void command_magic_st(HyperMemState *state,
+static void command_magic_st_module(HyperMemState *state,
                             HyperMemSessionState *session,
                             hypermem_entry_t value)
 {
-    HyperMemMagicContext *mc;
 
-    mc = state->magic_context;
+    switch (session->state) {
+    case 0:
+        session->command_state.magic_st.namelen = value;
+        session->state++;
+        break;
+    default:
+        swap_cr3(session);
 
-    /* spawn hyperst_client */
-    start_hyperst_client(state, state->hyperst, mc->name);
+        magic_do_st(state, value,
+            session->command_state.edfi_dump_stats_module.namelen);
+        swap_cr3(session);
+        hypermem_session_reset(session);
+        break;
+    }
 }
-
 
 static hypermem_entry_t handle_session_read(HyperMemState *state,
                                             HyperMemSessionState *session)
@@ -404,7 +436,7 @@ static void handle_session_write(HyperMemState *state,
     case HYPERMEM_COMMAND_PRINT: command_print_write(state, session, value); return;
     case HYPERMEM_COMMAND_SET_CR3: command_set_cr3(state, session, value); return;
     case HYPERMEM_COMMAND_MAGIC_CONTEXT_SET: command_magic_context_set_write(state, session, value); return;
-    case HYPERMEM_COMMAND_MAGIC_ST: command_magic_st(state, session, value); return;
+    case HYPERMEM_COMMAND_MAGIC_ST: command_magic_st_module(state, session, value); return;
     default: command_bad_write(state, session, value); return;
     }
 
@@ -419,6 +451,10 @@ static void handle_session_write(HyperMemState *state,
 	switch (session->command) {
 	case HYPERMEM_COMMAND_EDFI_DUMP_STATS:
 	    edfi_dump_stats_all(state);
+	    hypermem_session_reset(session);
+	    break;
+	case HYPERMEM_COMMAND_MAGIC_ST_ALL:
+	    magic_do_st_all(state);
 	    hypermem_session_reset(session);
 	    break;
 	}

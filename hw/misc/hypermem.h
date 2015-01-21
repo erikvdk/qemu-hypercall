@@ -29,27 +29,35 @@ typedef struct HyperMemSessionState {
 
     /* command state */
     union {
-	struct {
-	    hypermem_entry_t namelen;
-	    hypermem_entry_t nameptr;
-	    hypermem_entry_t contextptr;
-	} edfi_context_set;
-	struct {
-	    hypermem_entry_t namelen;
-	} edfi_dump_stats_module;
-	struct {
-	    hypermem_entry_t namelen;
-	    hypermem_entry_t nameptr;
-	} edfi_faultindex_get;
-	struct {
-	    hypermem_entry_t namelen;
-	    hypermem_entry_t nameptr;
-	} fault;
-	struct {
-	    hypermem_entry_t strlen;
-	    hypermem_entry_t strpos;
-	    char *strdata;
-	} print;
+        struct {
+            hypermem_entry_t namelen;
+            hypermem_entry_t nameptr;
+            hypermem_entry_t contextptr;
+        } edfi_context_set;
+        struct {
+            hypermem_entry_t namelen;
+        } edfi_dump_stats_module;
+        struct {
+            hypermem_entry_t namelen;
+            hypermem_entry_t nameptr;
+        } edfi_faultindex_get;
+        struct {
+            hypermem_entry_t namelen;
+            hypermem_entry_t nameptr;
+        } fault;
+        struct {
+            hypermem_entry_t strlen;
+            hypermem_entry_t strpos;
+            char *strdata;
+        } print;
+        struct {
+            hypermem_entry_t namelen;
+            hypermem_entry_t nameptr;
+            hypermem_entry_t contextptr;
+        } magic_context_set;
+        struct {
+            hypermem_entry_t namelen;
+        } magic_st;
     } command_state;
 
     /* the process_cr3 in case we need this to do page translation */
@@ -148,12 +156,35 @@ void logprintf_internal(struct logstate *state, const char *fmt, ...)
  * Function Prototypes
  */
 
-int start_hyperst_client(HyperMemState *state, char *path, char *target);
+int start_hyperst(HyperMemState *state, char *path, char *target);
 
 /* Magic Hypermem functions */
 
 HyperMemMagicContext *magic_context_create(HyperMemState *state, const char *name);
 HyperMemMagicContext *magic_context_find(HyperMemState *state, const char *name);
+void *magic_get_vars_with_context(HyperMemState *state, HyperMemMagicContext *mc);
+void magic_context_set_with_name(
+        HyperMemState *state,
+        const char *name,
+        hypermem_entry_t contextptr,
+        hypermem_entry_t contextsize);
+void *magic_get_range_with_context(
+        HyperMemState *state,
+        HyperMemMagicContext *mc,
+        uint32_t addr,
+        uint32_t size);
+void magic_do_st(
+        HyperMemState *state,
+        hypermem_entry_t nameptr,
+        hypermem_entry_t namelen);
+void magic_do_st_all(HyperMemState *state);
+
+void magic_context_set(
+        HyperMemState *state,
+        hypermem_entry_t nameptr,
+        hypermem_entry_t namelen,
+        hypermem_entry_t contextptr,
+        hypermem_entry_t contextsize);
 
 /* EDFI Hypermem functions */
 HyperMemEdfiContext *edfi_context_create(HyperMemState *state, const char *name);

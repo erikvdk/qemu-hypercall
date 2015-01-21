@@ -33,11 +33,12 @@ int vaddr_to_laddr(vaddr ptr, vaddr *result)
                 "segment limit 0x%lx\n", (long) ptr,
                 (long) cpu->env.segs[segindex].limit);
         *result = 0;
-	return 0;
+        return 0;
     }
     *result = ptr + cpu->env.segs[segindex].base;
     return 1;
 }
+
 
 char *read_string(vaddr strptr, vaddr strlen)
 {
@@ -48,13 +49,13 @@ char *read_string(vaddr strptr, vaddr strlen)
     if (!str) return NULL;
 
     if (!vaddr_to_laddr(strptr, &strptr_lin)) {
-	return NULL;
+        return NULL;
     }
     if (cpu_memory_rw_debug(current_cpu, strptr_lin, (uint8_t *) str,
         strlen, 0) < 0) {
-	fprintf(stderr, "hypermem: warning: cannot read string\n");
-	free(str);
-	return NULL;
+        fprintf(stderr, "hypermem: warning: cannot read string\n");
+        free(str);
+        return NULL;
     }
     str[strlen] = 0;
     return str;
@@ -72,22 +73,22 @@ void *load_from_hwaddrs(vaddr viraddr, vaddr size, hwaddr *hwaddrs)
     /* load buffer from physical addresses, one page at a time */
     p = buffer;
     while (size > 0) {
-	chunk = TARGET_PAGE_SIZE - viraddr % TARGET_PAGE_SIZE;
-	if (chunk > size) chunk = size;
+        chunk = TARGET_PAGE_SIZE - viraddr % TARGET_PAGE_SIZE;
+        if (chunk > size) chunk = size;
 
-	hwaddr = *hwaddrs + viraddr % TARGET_PAGE_SIZE;
-	if (hwaddr < HYPERMEM_BASEADDR + HYPERMEM_SIZE &&
-	    hwaddr + chunk > HYPERMEM_BASEADDR) {
-	    fprintf(stderr, "hypermem: warning: data to be loaded overlaps "
-	            "with IO range (hwaddr=0x%lx, chunk=0x%lx)\n",
-		    (long) hwaddr, (long) chunk);
-	} else {
-	    cpu_physical_memory_read(hwaddr, p, chunk);
-	}
-	viraddr += chunk;
-	size -= chunk;
-	hwaddrs++;
-	p += chunk;
+        hwaddr = *hwaddrs + viraddr % TARGET_PAGE_SIZE;
+        if (hwaddr < HYPERMEM_BASEADDR + HYPERMEM_SIZE &&
+            hwaddr + chunk > HYPERMEM_BASEADDR) {
+            fprintf(stderr, "hypermem: warning: data to be loaded overlaps "
+                    "with IO range (hwaddr=0x%lx, chunk=0x%lx)\n",
+                    (long) hwaddr, (long) chunk);
+        } else {
+            cpu_physical_memory_read(hwaddr, p, chunk);
+        }
+        viraddr += chunk;
+        size -= chunk;
+        hwaddrs++;
+        p += chunk;
     }
     return buffer;
 }

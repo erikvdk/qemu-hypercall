@@ -20,39 +20,123 @@
 
 #define LISTEN_BACKLOG 1024
 
-static int clients_nr;
+CPUState *hyperst_cpu;
 
-static int handle_connection(HyperMemState *state, int connfd, struct sockaddr_in addr)
+static void handle_connection(HyperMemState *state, int connfd, struct sockaddr_in addr)
 {
     int ret;
-    struct hyper_message header;
-    struct hyper_message reply;
+    char *payload_buff;
+    struct HyperMemMagicContext *mc;
+    struct hyper_message req;
+    struct hyper_message *reply;
+    struct hyper_region req_range;
 
-    ret = recv (connfd, &header, sizeof(struct hyper_message), 0);
-    if (ret != sizeof(struct hyper_message)) {
-        return -1;
-    }
+    /* TODO: Make things more consistent and nice, since we have a mess on our hands right now */
+    while (1) {
+        /* TODO: exit the loop properly (not the fact that the endpoint is closed and recv fails) */
+        ret = recv (connfd, &req, sizeof(struct hyper_message), 0);
+        if (ret != sizeof(struct hyper_message)) {
+            return;
+        }
 
-    switch (header.type) {
-        case HYPERTYPE_CHECK:
-            /* If we have the context associated with the name we reply */
-            if (magic_context_find(state, header.target) != NULL) {
-                reply.type = HYPERTYPE_REPLY;
-                reply.payload_size = 0;
-                memcpy(reply.target, header.target, MAX_TARGET_NAME);
-                send (connfd, &reply, sizeof(struct hyper_message), 0);
+        switch (req.header.type) {
+            case HYPERTYPE_GET_MAGIC_VARS:
+                mc = magic_context_find(state, req.header.target);
+                if ( mc == NULL) {
+                    goto error_out;
+                }
+ 
+                payload_buff = magic_get_vars_with_context(state, mc);
+                if (payload_buff == NULL) {
+                    fprintf(stderr, "hyperst_server: Failed to read _MAGIC_VARS\n");
+                    goto error_out;
+                }
+                /* The payload size is equal to the size of the magic_vars struct */
+                reply = calloc(sizeof(struct hyper_message) + mc->_magic_vars_size, 1);
+                reply->header.type = HYPERTYPE_REPLY;
+                memcpy(reply->header.target, req.header.target, MAX_TARGET_NAME);
+                reply->payload_size = mc->_magic_vars_size;
+                memcpy(&reply->payload, payload_buff, reply->payload_size);
+                if (send (connfd, reply, sizeof(struct hyper_message) + reply->payload_size, 0) < 0) {
+                    fprintf(stderr, "hyperst_server: Failed to send GET_MAGIC_VARS"
+                            " reply: %s\n", strerror(errno));
+                    return;
+                }
+                /* We need to free magic_vars_buf since no one else will */
+                free(payload_buff);
                 break;
-            }
-            /* Fallthrough and error */
 
-        /* If we get here, we reply with an error due to unhandled message*/
-        default:
-            reply.type = HYPERTYPE_ERROR;
-            reply.payload_size = 0;
-            send (connfd, &reply, sizeof(struct hyper_message), 0);
-            break;
+            case HYPERTYPE_GET_DATA_REGION:
+                mc = magic_context_find(state, req.header.target);
+                if ( mc == NULL) {
+                    goto error_out;
+                }
+                ret = recv (connfd, &req_range, sizeof(struct hyper_region), 0);
+                if (ret != sizeof(struct hyper_region)) {
+                    fprintf(stderr, "hyperst_server: Failed to recv GET_DATA_REGION"
+                            " region: %d %s\n", ret, strerror(errno));
+                    goto error_out;
+                }
+                payload_buff = magic_get_range_with_context(state, mc, req_range.address, req_range.size);
+                if (payload_buff == NULL) {
+                    fprintf(stderr, "hyperst_server: Failed to read range %x + %x\n", 
+                            req_range.address, (uint32_t)req_range.size);
+                    goto error_out;
+                }
+                /* The payload size is equal to the size of the magic_vars struct */
+                reply = calloc(sizeof(struct hyper_message) + req_range.size, 1);
+                reply->header.type = HYPERTYPE_REPLY;
+                memcpy(reply->header.target, req.header.target, MAX_TARGET_NAME);
+                reply->payload_size = req_range.size;
+                memcpy(&reply->payload, payload_buff, reply->payload_size);
+                if (send (connfd, reply, sizeof(struct hyper_message) + reply->payload_size, 0) < 0) {
+                    fprintf(stderr, "hyperst_server: Failed to reply to GET_DATA_REGION"
+                            " reply: %s\n", strerror(errno));
+                    return;
+                }
+                /* We need to free magic_vars_buf since no one else will */
+                free(payload_buff);
+                break;
+
+            case HYPERTYPE_CHECK:
+                /* If we have the context associated with the name we reply */
+                if (magic_context_find(state, req.header.target) != NULL) {
+                    reply = calloc(sizeof(struct hyper_message), 1);
+                    reply->header.type = HYPERTYPE_REPLY;
+                    reply->payload_size = 0;
+                    memcpy(reply->header.target, req.header.target, MAX_TARGET_NAME);
+                    if (send (connfd, reply, sizeof(struct hyper_message), 0) < 0) {
+                        fprintf(stderr, "hyperst_server: Failed to send HYPERTYPE_REPLY"
+                                " msg: %s\n", strerror(errno));
+                        return;
+                    }
+                    break;
+                }
+                goto error_out;
+
+            /* If we get here, we reply with an error due to unhandled message*/
+            default:
+               goto error_out;
+        }
+        free (reply);
     }
-    return 0;
+
+    close(connfd);
+    return;
+
+error_out:
+    reply = calloc(sizeof(struct hyper_message), 1);
+    reply->header.type = HYPERTYPE_ERROR;
+    memcpy(reply->header.target, req.header.target, MAX_TARGET_NAME);
+    reply->payload_size = 0;
+    if (send (connfd, reply, sizeof(struct hyper_message), 0) < 0) {
+        fprintf(stderr, "hyperst_server: Failed to send HYPERTYPE_ERROR"
+                " msg: %s\n", strerror(errno));
+    }
+
+    close(connfd);
+    free(reply);
+    return;
 }
 
 /*
@@ -62,16 +146,24 @@ static int handle_connection(HyperMemState *state, int connfd, struct sockaddr_i
 static void *hyperst_server(void *arg)
 {
     int ret;
+    int optval;
     int sockfd, peerfd;
     struct sockaddr_in serv_addr, peer_addr;
     HyperMemState *state = arg;
+
+    /* Borrow the qemu CPU from the calling thread */
+    current_cpu = hyperst_cpu;
+
 
     socklen_t peer_addr_size;
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {
-        handle_error("hypermem: Failed to create socket for magic_st server");
+        handle_error("hyperst_server: Failed to create socket server");
     }
+    /* We need to set SO_REUSEADDR if this is not the first st because the socket will be in timewait */
+    optval = 1;
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 
     memset(&serv_addr, 0, sizeof(struct sockaddr_in));
     /* Starting the server on all ip addresses and port 0xedf1 which whould be around 60000 */
@@ -81,50 +173,46 @@ static void *hyperst_server(void *arg)
 
     ret = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(struct sockaddr_in));
     if (ret == -1) {
-        handle_error("hypermem: Bind has failed to attach to port");
+        handle_error("hyperst_server: Bind has failed to attach to port");
     }
 
     ret = listen(sockfd, LISTEN_BACKLOG);
     if (ret == -1) {
-        handle_error("hypermem: Failed to set listen flag to socket");
+        handle_error("hyperst_server: Failed to set listen flag to socket");
     }
 
-    while(clients_nr) {
-        peer_addr_size = sizeof(peer_addr);
-        peerfd = accept(sockfd, (struct sockaddr *) &peer_addr,
+    peer_addr_size = sizeof(peer_addr);
+    peerfd = accept(sockfd, (struct sockaddr *) &peer_addr,
                         &peer_addr_size);
-        if (peerfd == -1) {
-            handle_error("hypermem: Failed to accept connection");
-        }
-
-        ret = handle_connection(state, peerfd, peer_addr);
-        if (ret != 0) {
-            handle_error("hypermem: Failed to handle connection");
-        }
+    if (peerfd == -1) {
+        handle_error("hyperst_server: Failed to accept connection");
     }
+
+    handle_connection(state, peerfd, peer_addr);
+
+    close(sockfd);
+    fprintf(stderr, "hyperst_server: closing server thread\n");
 
     return NULL;
 }
 
-int start_hyperst_client(HyperMemState *state, char *path, char *target)
+int start_hyperst(HyperMemState *state, char *path, char *target)
 {
     int ret;
     pthread_attr_t attr;
     static pthread_t server_thread_id;
 
-    if (clients_nr == 0) {
-        clients_nr ++;
-        ret = pthread_attr_init(&attr);
-        if (ret != 0) {
-            handle_error("hypermem: Failed to init pthread_attr");
-        }
-
-        ret = pthread_create(&server_thread_id, &attr, &hyperst_server, (void *)state);
-        if (ret != 0) {
-            handle_error("hypermem: Failed to spawn server thread");
-        }
-
+    ret = pthread_attr_init(&attr);
+    if (ret != 0) {
+        handle_error("hyperst: Failed to init pthread_attr");
     }
+
+    hyperst_cpu = current_cpu;
+    ret = pthread_create(&server_thread_id, &attr, &hyperst_server, (void *)state);
+    if (ret != 0) {
+        handle_error("hyperst: Failed to spawn server thread");
+    }
+
     ret = fork();
     /* The child process will be solely used to spawn a hyperst client */
     if (ret == 0) {
@@ -132,13 +220,23 @@ int start_hyperst_client(HyperMemState *state, char *path, char *target)
         char *argv[4];
         char *environ[] = { NULL };
 
-        argv[0] = strdup("hyperst_client");
+        argv[0] = strdup("hyperst_shell");
         argv[1] = strdup("127.0.0.1");
         argv[2] = strdup("60913");
         argv[3] = target;
 
         execve(path, argv, environ);
-        handle_error("hypermem: catstrophic error while doing execve");
+        fprintf(stderr, "%s\n", path);
+        handle_error("hyperst: catastrophic error while doing execve");
     }
+
+    /* This is really ugly, but we cannot allow qemu to continue execution and have an unconsistent state */
+    ret = pthread_join(server_thread_id, NULL);
+    hyperst_cpu = NULL;
+    if (ret != 0) {
+        fprintf(stderr, "hyperst: Failed to join with hyperst thread (%d)\n", ret);
+        return -1;
+    }
+
     return 0;
 }

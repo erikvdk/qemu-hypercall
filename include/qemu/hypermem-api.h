@@ -63,6 +63,21 @@
  * * hypermem protocol - set_cr3
  * - write command identifier HYPERMEM_COMMAND_SET_CR3
  * - write the current process cr3 value, to be used for the rest of the session
+ *
+ * * hypermem protocol - magic_context_set
+ * - write command identifier HYPERMEM_COMMAND_MAGIC_CONTEXT_SET
+ * - write the magic context name length
+ * - write the magic context name pointer
+ * - write the magic context pointer
+ * - write the magic context size
+ *
+ * * hypermem protocol - magic_st
+ * - write command identifier HYPERMEM_COMMAND_MAGIC_ST
+ * - write the magic context name length
+ * - write the magic context name pointer
+ *
+ * * hypermem protocol - magic_st_all
+ * - write command identifier HYPERMEM_COMMAND_MAGIC_ST_ALL
  */
  
  #include <stdint.h>
@@ -86,6 +101,7 @@ typedef uint32_t hypermem_entry_t;
 #define HYPERMEM_COMMAND_SET_CR3	8
 #define HYPERMEM_COMMAND_MAGIC_CONTEXT_SET	9
 #define HYPERMEM_COMMAND_MAGIC_ST	10
+#define HYPERMEM_COMMAND_MAGIC_ST_ALL	11
 
 #define HYPERCALL_NOP_REPLY	0x4e6f7021
 
