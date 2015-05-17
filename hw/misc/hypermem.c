@@ -23,6 +23,7 @@
 
 #include "helper.h"
 #include "exec/softmmu_exec.h"
+#include "qmp-commands.h"
 
 #include <qemu/hypermem-api.h>
 
