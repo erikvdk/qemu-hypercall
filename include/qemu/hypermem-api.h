@@ -50,34 +50,37 @@
  * - write module name pointer
  * - write basic block index
  *
- * hypermem protocol - nop
- * - write command identifier HYPERMEM_COMMAND_NOP
- * - read back reply
-*  - if the reply is HYPERCALL_NOP_REPLY, the hypermem interface works
- *
- * hypermem protocol - print
- * - write command identifier HYPERMEM_COMMAND_PRINT
- * - write a length of the string in bytes, excluding terminator
- * - write string data, one hypermem_entry_t unit at a time
- *
- * * hypermem protocol - set_cr3
- * - write command identifier HYPERMEM_COMMAND_SET_CR3
- * - write the current process cr3 value, to be used for the rest of the session
- *
- * * hypermem protocol - magic_context_set
+* hypermem protocol - magic_context_set
  * - write command identifier HYPERMEM_COMMAND_MAGIC_CONTEXT_SET
  * - write the magic context name length
  * - write the magic context name pointer
  * - write the magic context pointer
  * - write the magic context size
  *
- * * hypermem protocol - magic_st
+ * hypermem protocol - magic_st
  * - write command identifier HYPERMEM_COMMAND_MAGIC_ST
  * - write the magic context name length
  * - write the magic context name pointer
  *
- * * hypermem protocol - magic_st_all
+ * hypermem protocol - magic_st_all
  * - write command identifier HYPERMEM_COMMAND_MAGIC_ST_ALL
+ *
+ * hypermem protocol - nop
+ * - write command identifier HYPERMEM_COMMAND_NOP
+ * - read back reply
+ * - if the reply is HYPERCALL_NOP_REPLY, the hypermem interface works
+ *
+ * hypermem protocol - print
+ * - write command identifier HYPERMEM_COMMAND_PRINT
+ * - write a length of the string in bytes, excluding terminator
+ * - write string data, one hypermem_entry_t unit at a time
+ *
+ * hypermem protocol - quit
+ * - write command identifier HYPERMEM_COMMAND_QUIT
+ *
+ * hypermem protocol - set_cr3
+ * - write command identifier HYPERMEM_COMMAND_SET_CR3
+ * - write the current process cr3 value, to be used for the rest of the session
  */
  
  #include <stdint.h>
@@ -98,10 +101,11 @@ typedef uint32_t hypermem_entry_t;
 #define HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET	5
 #define HYPERMEM_COMMAND_EDFI_DUMP_STATS	6
 #define HYPERMEM_COMMAND_EDFI_DUMP_STATS_MODULE	7
-#define HYPERMEM_COMMAND_SET_CR3	8
+#define HYPERMEM_COMMAND_SET_CR3		8
 #define HYPERMEM_COMMAND_MAGIC_CONTEXT_SET	9
-#define HYPERMEM_COMMAND_MAGIC_ST	10
-#define HYPERMEM_COMMAND_MAGIC_ST_ALL	11
+#define HYPERMEM_COMMAND_MAGIC_ST		10
+#define HYPERMEM_COMMAND_MAGIC_ST_ALL		11
+#define HYPERMEM_COMMAND_QUIT			12
 
 #define HYPERCALL_NOP_REPLY	0x4e6f7021
 

@@ -116,3 +116,7 @@ void hypermem_print(struct hypermem_session *session, const char *str) {
 		len -= chunk;
 	}
 }
+
+void hypermem_quit(struct hypermem_session *session) {
+	hypermem_write(session, HYPERMEM_COMMAND_QUIT);
+}

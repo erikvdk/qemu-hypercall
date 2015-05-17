@@ -22,5 +22,6 @@ void hypermem_fault(struct hypermem_session *session, const char *name,
 	unsigned bbindex);
 int hypermem_nop(struct hypermem_session *session);
 void hypermem_print(struct hypermem_session *session, const char *str);
+int hypermem_quit(struct hypermem_session *session);
 
 #endif /* !defined(HYPERMEM_H) */

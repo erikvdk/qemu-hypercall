@@ -32,6 +32,8 @@ int main(int argc, char **argv) {
 		} else if (strcmp(cmd, "print") == 0) {
 			str = *arg ? *(arg++) : "hello world";
 			hypermem_print(&session, str);
+		} else if (strcmp(cmd, "quit") == 0) {
+			hypermem_quit(&session);
 		} else {
 			fprintf(stderr, "error: invalid command \"%s\"\n", cmd);
 			r = 2;

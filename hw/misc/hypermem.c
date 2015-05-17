@@ -457,6 +457,11 @@ static void handle_session_write(HyperMemState *state,
 	    magic_do_st_all(state);
 	    hypermem_session_reset(session);
 	    break;
+	case HYPERMEM_COMMAND_QUIT:
+            logprintf(state, "quitting QEMU\n");
+	    qmp_quit(NULL);
+	    hypermem_session_reset(session); /* QEMU should be gone here, but just in case */
+	    break;
 	}
     }
 }
