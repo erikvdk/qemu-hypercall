@@ -143,7 +143,9 @@ void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiConte
     if (bb_num_executions[0] != EDFI_CANARY_VALUE ||
         bb_num_executions[ec->context.num_bbs + 1] != EDFI_CANARY_VALUE) {
         fprintf(stderr, "hypermem: %s:%d warning: bb_num_executions canaries "
-                "incorrect\n", ec->name, ec->context.num_bbs);
+                "incorrect (0x%llx, 0x%llx)\n", ec->name, ec->context.num_bbs,
+		(long long) bb_num_executions[0],
+		(long long) bb_num_executions[ec->context.num_bbs + 1]);
         free(bb_num_executions);
         return;
     }    
