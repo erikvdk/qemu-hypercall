@@ -78,6 +78,11 @@
  * hypermem protocol - quit
  * - write command identifier HYPERMEM_COMMAND_QUIT
  *
+ * hypermem protocol - release_cr3
+ * - write command identifier HYPERMEM_COMMAND_RELEASE_CR3
+ * - write the process cr3 value for which the associated context is to be
+ *   released
+ *
  * hypermem protocol - set_cr3
  * - write command identifier HYPERMEM_COMMAND_SET_CR3
  * - write the current process cr3 value, to be used for the rest of the session
@@ -106,6 +111,7 @@ typedef uint32_t hypermem_entry_t;
 #define HYPERMEM_COMMAND_MAGIC_ST		10
 #define HYPERMEM_COMMAND_MAGIC_ST_ALL		11
 #define HYPERMEM_COMMAND_QUIT			12
+#define HYPERMEM_COMMAND_RELEASE_CR3		13
 
 #define HYPERCALL_NOP_REPLY	0x4e6f7021
 

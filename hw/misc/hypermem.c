@@ -339,6 +339,14 @@ static void command_print_write(HyperMemState *state,
     }
 }
 
+static void command_release_cr3(HyperMemState *state,
+                            HyperMemSessionState *session,
+                            hypermem_entry_t value)
+{
+    edfi_context_release(state, value);
+    hypermem_session_reset(session);
+}
+
 static void command_set_cr3(HyperMemState *state,
                             HyperMemSessionState *session,
                             hypermem_entry_t value)
@@ -436,6 +444,7 @@ static void handle_session_write(HyperMemState *state,
     case HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET: command_edfi_faultindex_get_write(state, session, value); return;
     case HYPERMEM_COMMAND_FAULT: command_fault_write(state, session, value); return;
     case HYPERMEM_COMMAND_PRINT: command_print_write(state, session, value); return;
+    case HYPERMEM_COMMAND_RELEASE_CR3: command_release_cr3(state, session, value); return;
     case HYPERMEM_COMMAND_SET_CR3: command_set_cr3(state, session, value); return;
     case HYPERMEM_COMMAND_MAGIC_CONTEXT_SET: command_magic_context_set_write(state, session, value); return;
     case HYPERMEM_COMMAND_MAGIC_ST: command_magic_st_module(state, session, value); return;

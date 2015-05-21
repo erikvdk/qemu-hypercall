@@ -13,10 +13,7 @@
 
 #include "hypermem.h"
 
-HyperMemEdfiContext *edfi_context_create(
-	HyperMemState *state,
-	const char *name,
-	uint32_t process_cr3) 
+HyperMemEdfiContext *edfi_context_create(HyperMemState *state, const char *name)
 {
     HyperMemEdfiContext *ec;
 
@@ -30,7 +27,6 @@ HyperMemEdfiContext *edfi_context_create(
         free(ec);
         return NULL;
     }
-    ec->process_cr3 = process_cr3;
 
     /* add to linked list */
     ec->next = state->edfi_context;
@@ -46,6 +42,25 @@ HyperMemEdfiContext *edfi_context_find(HyperMemState *state, const char *name)
         if (strcmp(ec->name, name) == 0) return ec;
     }
     return NULL;
+}
+
+void edfi_context_release(
+	HyperMemState *state,
+	uint32_t process_cr3)
+{
+    HyperMemEdfiContext *ec, **ec_p;
+
+    ec_p = &state->edfi_context;
+    while ((ec = *ec_p)) {
+        if (ec->process_cr3 == process_cr3) {
+            logprintf(state, "EDFI context release module=%s\n", ec->name);
+	    *ec_p = ec->next;
+	    free(ec->name);
+	    free(ec);
+	} else {
+	    ec_p = &ec->next;
+	}
+    }
 }
 
 void edfi_context_set_with_name(
@@ -64,10 +79,11 @@ void edfi_context_set_with_name(
     if (ec) {
         logprintf(state, "EDFI context reset module=%s\n", name);
     } else {
-        ec = edfi_context_create(state, name, process_cr3);
+        ec = edfi_context_create(state, name);
         if (!ec) return;
         logprintf(state, "EDFI context set module=%s\n", name);
     }
+    ec->process_cr3 = process_cr3;
 
     /* read EDFI context */
     if (!vaddr_to_laddr(contextptr, &contextptr_lin)) {

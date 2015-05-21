@@ -187,11 +187,9 @@ void magic_context_set(
         hypermem_entry_t contextsize);
 
 /* EDFI Hypermem functions */
-HyperMemEdfiContext *edfi_context_create(
-	HyperMemState *state,
-	const char *name,
-	uint32_t process_cr3);
+HyperMemEdfiContext *edfi_context_create(HyperMemState *state, const char *name);
 HyperMemEdfiContext *edfi_context_find(HyperMemState *state, const char *name);
+void edfi_context_release(HyperMemState *state, uint32_t process_cr3);
 void edfi_context_set_with_name(
         HyperMemState *state, 
         const char *name,
