@@ -62,6 +62,7 @@ typedef struct HyperMemEdfiContext {
     char *name;
     edfi_context_t context;
     hwaddr *bb_num_executions_hwaddr;
+    uint32_t process_cr3;
 } HyperMemEdfiContext;
 
 

@@ -13,7 +13,10 @@
 
 #include "hypermem.h"
 
-HyperMemEdfiContext *edfi_context_create(HyperMemState *state, const char *name) 
+HyperMemEdfiContext *edfi_context_create(
+	HyperMemState *state,
+	const char *name,
+	uint32_t process_cr3) 
 {
     HyperMemEdfiContext *ec;
 
@@ -27,6 +30,7 @@ HyperMemEdfiContext *edfi_context_create(HyperMemState *state, const char *name)
         free(ec);
         return NULL;
     }
+    ec->process_cr3 = process_cr3;
 
     /* add to linked list */
     ec->next = state->edfi_context;
@@ -48,7 +52,8 @@ void edfi_context_set_with_name(
         HyperMemState *state,
         const char *name,
         hypermem_entry_t contextptr,
-        hypermem_entry_t ptroffset)
+        hypermem_entry_t ptroffset,
+	uint32_t process_cr3)
 {
     HyperMemEdfiContext *ec;
     hwaddr page_hwaddr;
@@ -59,7 +64,7 @@ void edfi_context_set_with_name(
     if (ec) {
         logprintf(state, "EDFI context reset module=%s\n", name);
     } else {
-        ec = edfi_context_create(state, name);
+        ec = edfi_context_create(state, name, process_cr3);
         if (!ec) return;
         logprintf(state, "EDFI context set module=%s\n", name);
     }
@@ -113,7 +118,8 @@ void edfi_context_set(
         hypermem_entry_t nameptr,
         hypermem_entry_t namelen,
         hypermem_entry_t contextptr,
-        hypermem_entry_t ptroffset)
+        hypermem_entry_t ptroffset,
+	uint32_t process_cr3)
 {
     char *name;
 
@@ -122,7 +128,7 @@ void edfi_context_set(
     if (!name) return;
 
     /* now that we have the name, do the actual work */
-    edfi_context_set_with_name(state, name, contextptr, ptroffset);
+    edfi_context_set_with_name(state, name, contextptr, ptroffset, process_cr3);
 
     /* clean up */
     free(name);
@@ -143,9 +149,7 @@ void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiConte
     if (bb_num_executions[0] != EDFI_CANARY_VALUE ||
         bb_num_executions[ec->context.num_bbs + 1] != EDFI_CANARY_VALUE) {
         fprintf(stderr, "hypermem: %s:%d warning: bb_num_executions canaries "
-                "incorrect (0x%llx, 0x%llx)\n", ec->name, ec->context.num_bbs,
-		(long long) bb_num_executions[0],
-		(long long) bb_num_executions[ec->context.num_bbs + 1]);
+                "incorrect\n", ec->name, ec->context.num_bbs);
         free(bb_num_executions);
         return;
     }    

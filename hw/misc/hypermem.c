@@ -205,11 +205,12 @@ static void command_edfi_context_set_write(HyperMemState *state,
 	session->state++;
 	break;
     default:
-        swap_cr3 (session);
+        swap_cr3(session);
 	edfi_context_set(state, session->command_state.edfi_context_set.nameptr,
 	    session->command_state.edfi_context_set.namelen,
-	    session->command_state.edfi_context_set.contextptr, value);
-        swap_cr3 (session);
+	    session->command_state.edfi_context_set.contextptr, value,
+	    session->process_cr3);
+        swap_cr3(session);
 	hypermem_session_reset(session);
 	break;
     }
