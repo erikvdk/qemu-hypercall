@@ -96,6 +96,20 @@ void logprintf(HyperMemState *state, const char *fmt, ...) {
     va_end(args);
 }
 
+void logprinterr(HyperMemState *state, const char *fmt, ...) {
+    va_list args;
+
+    fprintf(stderr, "hypermem: ");
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    fflush(stderr);
+
+    va_start(args, fmt);
+    logvprintf(state, fmt, args);
+    va_end(args);
+}
+
 static void swap_cr3(HyperMemSessionState *session) {
     X86CPU *cpu = X86_CPU(current_cpu);
     bool kvm_vcpu_dirty;
@@ -172,7 +186,7 @@ static void hypermem_session_reset(HyperMemSessionState *session) {
 static hypermem_entry_t command_bad_read(HyperMemState *state,
                                          HyperMemSessionState *session)
 {
-    fprintf(stderr, "hypermem: warning: unexpected read during command %d\n",
+    logprinterr(state, "warning: unexpected read during command %d\n",
             session->command);
     hypermem_session_reset(session);
     return 0;
@@ -182,7 +196,7 @@ static void command_bad_write(HyperMemState *state,
                               HyperMemSessionState *session,
                               hypermem_entry_t value)
 {
-    fprintf(stderr, "hypermem: warning: unexpected write during command %d "
+    logprinterr(state, "warning: unexpected write during command %d "
             "(value=0x%llx)\n", session->command, (long long) value);
     hypermem_session_reset(session);
 }
@@ -281,7 +295,7 @@ static void command_fault_write(HyperMemState *state,
 	session->state++;
 	break;
     default:
-	log_fault(state->logstate, session->command_state.fault.nameptr,
+	log_fault(state, session->command_state.fault.nameptr,
 	    session->command_state.fault.namelen, value);
 	hypermem_session_reset(session);
 	break;
@@ -412,10 +426,10 @@ static hypermem_entry_t handle_session_read(HyperMemState *state,
     }
 
     if (session->command) {
-	fprintf(stderr, "hypermem: warning: read for invalid command %d\n",
+	logprinterr(state, "warning: read for invalid command %d\n",
 	        session->command);
     } else {
-	fprintf(stderr, "hypermem: warning: read before selecting command\n");
+	logprinterr(state, "warning: read before selecting command\n");
     }
     return 0;
 }
@@ -443,7 +457,7 @@ static void handle_session_write(HyperMemState *state,
     }
 
     if (!value) {
-	fprintf(stderr, "hypermem: warning: command not specified\n");
+	logprinterr(state, "warning: command not specified\n");
     } else {
 	session->command = value;
 
@@ -482,7 +496,7 @@ static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
     /* verify address */
     entry = addr / sizeof(hypermem_entry_t);
     if (entry >= HYPERMEM_ENTRIES) {
-	fprintf(stderr, "hypermem: error: read from invalid address 0x%lx\n",
+	logprinterr(state, "error: read from invalid address 0x%lx\n",
 	        (long) addr);
 	return 0;
     }
@@ -499,7 +513,7 @@ static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
 
     /* other reads are in sessions */
     if (!state->sessions[entry].active) {
-	fprintf(stderr, "hypermem: warning: attempt to read "
+	logprinterr(state, "warning: attempt to read "
 	        "in inactive session %u\n", (unsigned) entry);
 	return 0;
     }
@@ -525,7 +539,7 @@ static void hypermem_mem_write_internal(HyperMemState *state,
     /* verify address */
     entry = addr / sizeof(hypermem_entry_t);
     if (entry >= HYPERMEM_ENTRIES) {
-	fprintf(stderr, "hypermem: error: write to invalid address 0x%lx\n",
+	logprinterr(state, "error: write to invalid address 0x%lx\n",
 	        (long) addr);
 	return;
     }
@@ -534,12 +548,12 @@ static void hypermem_mem_write_internal(HyperMemState *state,
     if (entry == 0) {
         session_id = hypermem_session_from_address(mem_value);
 	if (!session_id) {
-	    fprintf(stderr, "hypermem: warning: attempt to tear down session "
+	    logprinterr(state, "warning: attempt to tear down session "
 	            "for invalid address 0x%lx\n", (long) mem_value);
 	    return;
 	}
 	if (!state->sessions[session_id].active) {
-	    fprintf(stderr, "hypermem: warning: attempt to tear down inactive "
+	    logprinterr(state, "warning: attempt to tear down inactive "
 	            "session %u for address 0x%lx\n",
 		    session_id, (long) mem_value);
 	    return;
@@ -555,7 +569,7 @@ static void hypermem_mem_write_internal(HyperMemState *state,
 
     /* other writes are in sessions */
     if (!state->sessions[entry].active) {
-	fprintf(stderr, "hypermem: warning: attempt to write in inactive "
+	logprinterr(state, "warning: attempt to write in inactive "
 	        "session %u\n", (unsigned) entry);
 	return;
     }
@@ -593,7 +607,7 @@ static HyperMemPendingOperation *hypermem_find_pending_operation(
 
     /* no entries available is an error (it means the VM is misbehaving) */
     if (!opempty) {
-	fprintf(stderr, "hypermem: warning: %s, too many pending operations\n",
+	logprinterr(state, "warning: %s, too many pending operations\n",
 	    is_write ? "write ignored" : "read failed");
 	return NULL;
     }
@@ -715,8 +729,8 @@ static void hypermem_realizefn(DeviceState *dev, Error **errp)
 	(struct logstate *) calloc(1, sizeof(struct logstate));
     s->logstate->flushlog = s->flushlog;
     if (!s->logstate) {
-	fprintf(stderr, "error: hypermem: "
-	    "cannot allocate memory for log state\n");
+	fprintf(stderr, "hypermem: error: cannot allocate memory "
+	    "for log state\n");
 	exit(-1);
     }
     if (s->logpath) {

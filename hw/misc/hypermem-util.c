@@ -14,7 +14,7 @@
 #include "hypermem-edfi.h"
 #include "hypermem.h"
 
-int vaddr_to_laddr(vaddr ptr, vaddr *result)
+int vaddr_to_laddr(HyperMemState *state, vaddr ptr, vaddr *result)
 {
     X86CPU *cpu = X86_CPU(current_cpu);
     int segindex = R_DS;
@@ -22,14 +22,8 @@ int vaddr_to_laddr(vaddr ptr, vaddr *result)
     /* perform segment translation (cpu_get_phys_page_debug and
      * cpu_memory_rw_debug expect linear addresses)
      */
-#ifdef HYPERMEM_DEBUG
-    printf("hypermem: vaddr_to_laddr; ptr=0x%lx, "
-        "base=0x%lx, limit=0x%lx\n", (long) ptr,
-        (long) cpu->env.segs[segindex].base,
-        (long) cpu->env.segs[segindex].limit);
-#endif
     if (ptr >= cpu->env.segs[segindex].limit) {
-        fprintf(stderr, "hypermem: warning: ptr 0x%lx exceeds "
+        logprinterr(state, "warning: ptr 0x%lx exceeds "
                 "segment limit 0x%lx\n", (long) ptr,
                 (long) cpu->env.segs[segindex].limit);
         *result = 0;
@@ -40,7 +34,7 @@ int vaddr_to_laddr(vaddr ptr, vaddr *result)
 }
 
 
-char *read_string(vaddr strptr, vaddr strlen)
+char *read_string(HyperMemState *state, vaddr strptr, vaddr strlen)
 {
     char *str;
     vaddr strptr_lin;
@@ -48,12 +42,12 @@ char *read_string(vaddr strptr, vaddr strlen)
     str = CALLOC(strlen + 1, char);
     if (!str) return NULL;
 
-    if (!vaddr_to_laddr(strptr, &strptr_lin)) {
+    if (!vaddr_to_laddr(state, strptr, &strptr_lin)) {
         return NULL;
     }
     if (cpu_memory_rw_debug(current_cpu, strptr_lin, (uint8_t *) str,
         strlen, 0) < 0) {
-        fprintf(stderr, "hypermem: warning: cannot read string\n");
+        logprinterr(state, "warning: cannot read string\n");
         free(str);
         return NULL;
     }
@@ -124,8 +118,8 @@ static int read_pagetable(uint32_t cr3, uint32_t cr4, vaddr linaddr,
     }
 }
 
-size_t read_with_pagetable(uint32_t cr3, uint32_t cr4, vaddr linaddr,
-    void *buffer, size_t size) {
+size_t read_with_pagetable(HyperMemState *state, uint32_t cr3, uint32_t cr4,
+    vaddr linaddr, void *buffer, size_t size) {
     vaddr chunk;
     uint8_t *p;
     hwaddr physaddr;
@@ -140,7 +134,7 @@ size_t read_with_pagetable(uint32_t cr3, uint32_t cr4, vaddr linaddr,
 	if (read_pagetable(cr3, cr4, linaddr, &physaddr) < 0) break;
         if (physaddr < HYPERMEM_BASEADDR + HYPERMEM_SIZE &&
             physaddr + chunk > HYPERMEM_BASEADDR) {
-            fprintf(stderr, "hypermem: warning: data to be loaded overlaps "
+            logprinterr(state, "warning: data to be loaded overlaps "
                     "with IO range (physaddr=0x%lx, chunk=0x%lx)\n",
                     (long) physaddr, (long) chunk);
         } else {

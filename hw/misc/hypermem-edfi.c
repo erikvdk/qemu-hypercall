@@ -22,8 +22,7 @@ HyperMemEdfiContext *edfi_context_create(HyperMemState *state, const char *name)
     if (!ec) return NULL;
     ec->name = strdup(name);
     if (!ec->name) {
-        fprintf(stderr, "hypermem: error: strdup failed: %s\n",
-            strerror(errno));
+        logprinterr(state, "error: strdup failed: %s\n", strerror(errno));
         free(ec);
         return NULL;
     }
@@ -82,8 +81,8 @@ void edfi_context_set_with_name(
 
     /* check that paging is enabled */
     if (!cpu_paging_enabled(cs)) {
-        fprintf(stderr, "hypermem: warning: cannot set page table with paging disabled module=%s\n", name);
-        logprintf(state, "warning: cannot set page table with paging disabled module=%s\n", name);
+        logprinterr(state, "warning: cannot set page table with "
+	    "paging disabled module=%s\n", name);
 	return;
     }
 
@@ -100,31 +99,30 @@ void edfi_context_set_with_name(
     ec->cr4 = cpu->env.cr[4];
 
     /* read EDFI context */
-    if (!vaddr_to_laddr(contextptr, &contextptr_lin)) {
-        fprintf(stderr, "hypermem: warning: cannot convert contextptr to linear address module=%s\n", name);
-        logprintf(state, "warning: cannot convert contextptr to linear address module=%s\n", name);
+    if (!vaddr_to_laddr(state, contextptr, &contextptr_lin)) {
+        logprinterr(state, "warning: cannot convert contextptr to "
+	    "linear address module=%s\n", name);
         return;
     }
-    if (read_with_pagetable(ec->cr3, ec->cr4, contextptr_lin,
+    if (read_with_pagetable(state, ec->cr3, ec->cr4, contextptr_lin,
 	&ec->context, sizeof(ec->context)) != sizeof(ec->context)) {
-        fprintf(stderr, "hypermem: warning: cannot read EDFI context module=%s\n", name);
-        logprintf(state, "warning: cannot read EDFI context module=%s\n", name);
+        logprinterr(state, "warning: cannot read EDFI context module=%s\n", name);
         return;
     }
 
     /* verify canary */
     if (ec->context.canary_value1 != EDFI_CANARY_VALUE ||
         ec->context.canary_value2 != EDFI_CANARY_VALUE) {
-        fprintf(stderr, "hypermem: warning: EDFI context canaries incorrect module=%s\n", name);
-        logprintf(state, "warning: EDFI context canaries incorrect module=%s\n", name);
+        logprinterr(state, "warning: EDFI context canaries incorrect "
+	    "module=%s\n", name);
         return;
     }
 
     /* store linear addresse for bb_num_executions */
-    if (!vaddr_to_laddr((vaddr) ec->context.bb_num_executions,
+    if (!vaddr_to_laddr(state, (vaddr) ec->context.bb_num_executions,
         &ec->bb_num_executions_linaddr)) {
-        fprintf(stderr, "hypermem: warning: cannot convert EDFI context virtual address to linear address module=%s\n", name);
-        logprintf(state, "warning: cannot convert EDFI context virtual address to linear address module=%s\n", name);
+        logprinterr(state, "warning: cannot convert EDFI context "
+	    "virtual address to linear address module=%s\n", name);
         ec->bb_num_executions_linaddr = 0;
 	return;
     }
@@ -141,7 +139,7 @@ void edfi_context_set(
     char *name;
 
     /* read module name from VM */
-    name = read_string(nameptr, namelen);
+    name = read_string(state, nameptr, namelen);
     if (!name) return;
 
     /* now that we have the name, do the actual work */
@@ -159,8 +157,8 @@ void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiConte
     int i, repeats;
 
     if (!ec->bb_num_executions_linaddr) {
-        logprintf(state, "%s warning: cannot dump EDFI context due to "
-		"missing address\n", ec->name);
+        logprinterr(state, "warning: cannot dump EDFI context due to "
+		"missing address module=%s\n", ec->name);
         return;
     }
 
@@ -168,21 +166,18 @@ void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiConte
     bb_num_executions_count = ec->context.num_bbs + 2;
     bb_num_executions_size = bb_num_executions_count * sizeof(exec_count);
     bb_num_executions = CALLOC(bb_num_executions_count, exec_count);
-    if (read_with_pagetable(ec->cr3, ec->cr4, ec->bb_num_executions_linaddr,
+    if (read_with_pagetable(state, ec->cr3, ec->cr4, ec->bb_num_executions_linaddr,
         bb_num_executions, bb_num_executions_size) != bb_num_executions_size) {
-        fprintf(stderr, "hypermem: %s warning: cannot read EDFI context\n",
-		ec->name);
-        logprintf(state, "%s warning: cannot read EDFI context\n", ec->name);
+        logprinterr(state, "warning: cannot read EDFI context module=%s\n",
+	    ec->name);
         goto cleanup;
     }
 
     /* check canaries */
     if (bb_num_executions[0] != EDFI_CANARY_VALUE ||
         bb_num_executions[ec->context.num_bbs + 1] != EDFI_CANARY_VALUE) {
-        fprintf(stderr, "hypermem: %s warning: bb_num_executions canaries "
-                "incorrect\n", ec->name);
-        logprintf(state, "%s warning: bb_num_executions canaries incorrect\n",
-		ec->name);
+        logprinterr(state, "warning: bb_num_executions canaries incorrect "
+	    "module=%s\n", ec->name);
         goto cleanup;
     }    
 
@@ -245,7 +240,7 @@ void edfi_dump_stats_module(
     char *name;
 
     /* read module name from VM */
-    name = read_string(nameptr, namelen);
+    name = read_string(state, nameptr, namelen);
     if (!name) return;
 
     /* now that we have the name, do the actual work */
@@ -316,7 +311,7 @@ hypermem_entry_t edfi_faultindex_get(
     char *name;
 
     /* read module name from VM */
-    name = read_string(nameptr, namelen);
+    name = read_string(state, nameptr, namelen);
     if (!name) return 0;
 
     /* now that we have the name, do the actual work */
@@ -350,15 +345,16 @@ void flush_fault(struct logstate *state)
 }
 
 void log_fault(
-        struct logstate *state,
+        HyperMemState *hmstate,
         hypermem_entry_t nameptr,
         hypermem_entry_t namelen,
         hypermem_entry_t bbindex)
 {
     char *name;
+    struct logstate *state = hmstate->logstate;
 
     /* read module name from VM */
-    name = read_string(nameptr, namelen);
+    name = read_string(hmstate, nameptr, namelen);
     if (!name) return;
 
     if (state->fault_name && (

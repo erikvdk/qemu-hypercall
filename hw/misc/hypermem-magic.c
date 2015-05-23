@@ -36,7 +36,7 @@ HyperMemMagicContext *magic_context_create(HyperMemState *state, const char *nam
     }
     mc->name = strdup(name);
     if (!mc->name) {
-        fprintf(stderr, "hypermem: error: strdup failed: %s\n",
+        logprinterr(state, "hypermem: error: strdup failed: %s\n",
             strerror(errno));
         free(mc);
         return NULL;
@@ -69,8 +69,8 @@ void magic_context_set_with_name(
         logprintf(state, "MAGIC context set module=%s\n", name);
     }
 
-    if (!vaddr_to_laddr(contextptr, &contextptr_lin)) {
-        fprintf(stderr, "hypermem: failed to convert vaddr to laddr\n");
+    if (!vaddr_to_laddr(state, contextptr, &contextptr_lin)) {
+        logprinterr(state, "warning: failed to convert vaddr to laddr\n");
         state->magic_context = mc->next;
         free(mc);
         return;
@@ -90,7 +90,7 @@ void magic_context_set(
     char *name;
 
     /* read module name from VM */
-    name = read_string(nameptr, namelen);
+    name = read_string(state, nameptr, namelen);
     if (!name) return;
 
     /* now that we have the name, do the actual work */
@@ -116,7 +116,7 @@ void *magic_get_vars_with_context(
     fprintf(stderr, "RG: reading context %s of size %d\n", mc->name, mc->_magic_vars_size);
     if (cpu_memory_rw_debug(hyperst_cpu, mc->_magic_vars_addr, (uint8_t *) vars_buffer,
         mc->_magic_vars_size, 0) < 0) {
-        fprintf(stderr, "hypermem: warning: cannot read MAGIC context\n");
+        logprinterr(state, "warning: cannot read MAGIC context\n");
         free(vars_buffer);
         return NULL;
     }
@@ -139,12 +139,12 @@ void *magic_get_range_with_context(
         return NULL;
     }
 
-    if (!vaddr_to_laddr(addr, &addr_lin)) {
+    if (!vaddr_to_laddr(state, addr, &addr_lin)) {
         return NULL;
     }
 
     if (cpu_memory_rw_debug(hyperst_cpu, addr_lin, (uint8_t *) buff, size, 0) < 0) {
-        fprintf(stderr, "hypermem: warning: cannot read range\n");
+        logprinterr(state, "warning: cannot read range\n");
         free(buff);
         return NULL;
     }
@@ -160,13 +160,13 @@ void magic_do_st(
     char *name;
 
     /* read module name from VM */
-    name = read_string(nameptr, namelen);
+    name = read_string(state, nameptr, namelen);
     if (!name) {
         return;
     }
     mc = magic_context_find(state, name);
     if (!mc) {
-        fprintf(stderr, "hypermem: warning cannot find context for '%s'\n", name);
+        logprinterr(state, "warning: cannot find context for '%s'\n", name);
         return;
     }
 
