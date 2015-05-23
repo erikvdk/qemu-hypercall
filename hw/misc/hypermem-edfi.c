@@ -74,6 +74,11 @@ void edfi_context_set_with_name(
     X86CPU *cpu = X86_CPU(cs);
     HyperMemEdfiContext *ec;
     vaddr contextptr_lin;
+    bool kvm_vcpu_dirty;
+
+    kvm_vcpu_dirty = cs->kvm_vcpu_dirty;
+    cpu_synchronize_state(cs);
+    cs->kvm_vcpu_dirty = kvm_vcpu_dirty;
 
     /* check that paging is enabled */
     if (cpu_paging_enabled(cs)) {
