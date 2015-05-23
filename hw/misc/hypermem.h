@@ -60,7 +60,7 @@ typedef struct HyperMemSessionState {
         } magic_st;
     } command_state;
 
-    /* the process_cr3 in case we need this to do page translation */
+    /* the cr3 in case we need this to do page translation */
     uint32_t process_cr3;
 } HyperMemSessionState;
 
@@ -147,7 +147,8 @@ static inline void *calloc_checked(size_t count, size_t size,
 
 int vaddr_to_laddr(vaddr ptr, vaddr *result);
 char *read_string(vaddr strptr, vaddr strlen);
-void *load_from_hwaddrs(vaddr viraddr, vaddr size, hwaddr *hwaddrs);
+size_t read_with_pagetable(uint32_t cr3, uint32_t cr4, vaddr linaddr,
+    void *buffer, size_t size);
 void logprintf(HyperMemState *state, const char *fmt, ...)
     __attribute__ ((__format__ (__printf__, 2, 3)));
 void logprintf_internal(struct logstate *state, const char *fmt, ...)

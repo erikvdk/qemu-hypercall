@@ -52,7 +52,7 @@ void edfi_context_release(
 
     ec_p = &state->edfi_context;
     while ((ec = *ec_p)) {
-        if (ec->process_cr3 == process_cr3) {
+        if (ec->cr3 == process_cr3) {
             logprintf(state, "EDFI context release module=%s\n", ec->name);
 	    *ec_p = ec->next;
 	    free(ec->name);
@@ -70,9 +70,16 @@ void edfi_context_set_with_name(
         hypermem_entry_t ptroffset,
 	uint32_t process_cr3)
 {
+    CPUState *cs = current_cpu;
+    X86CPU *cpu = X86_CPU(cs);
     HyperMemEdfiContext *ec;
-    hwaddr page_hwaddr;
-    vaddr contextptr_lin, page_count, page_index, page_vaddr;
+    vaddr contextptr_lin;
+
+    /* check that paging is enabled */
+    if (!cpu_paging_enabled(cs)) {
+        logprintf(state, "error: cannot set pageable with paging disabled module=%s\n", name);
+	return;
+    }
 
     /* overwrite if we've seen this module before */
     ec = edfi_context_find(state, name);
@@ -83,14 +90,15 @@ void edfi_context_set_with_name(
         if (!ec) return;
         logprintf(state, "EDFI context set module=%s\n", name);
     }
-    ec->process_cr3 = process_cr3;
+    ec->cr3 = process_cr3;
+    ec->cr4 = cpu->env.cr[4];
 
     /* read EDFI context */
     if (!vaddr_to_laddr(contextptr, &contextptr_lin)) {
         return;
     }
-    if (cpu_memory_rw_debug(current_cpu, contextptr_lin, (uint8_t *) &ec->context,
-        sizeof(ec->context), 0) < 0) {
+    if (read_with_pagetable(ec->cr3, ec->cr4, contextptr_lin,
+	&ec->context, sizeof(ec->context)) != sizeof(ec->context)) {
         fprintf(stderr, "hypermem: warning: cannot read EDFI context\n");
         return;
     }
@@ -102,31 +110,14 @@ void edfi_context_set_with_name(
         return;
     }
 
-    /* store physical addresses for bb_num_executions (including canaries) */
-    page_count = (sizeof(exec_count) * (ec->context.num_bbs + 2) +
-                 (vaddr) ec->context.bb_num_executions % TARGET_PAGE_SIZE +
-                 TARGET_PAGE_SIZE - 1) / TARGET_PAGE_SIZE;
-    ec->bb_num_executions_hwaddr = CALLOC(page_count, hwaddr);
-    if (!ec->bb_num_executions_hwaddr) return;
-
-    if (!vaddr_to_laddr((vaddr) ec->context.bb_num_executions, &page_vaddr)) {
-        goto fail;
+    /* store linear addresse for bb_num_executions */
+    if (!vaddr_to_laddr((vaddr) ec->context.bb_num_executions,
+        &ec->bb_num_executions_linaddr)) {
+        fprintf(stderr, "hypermem: warning: cannot convert EDFI context "
+		"virtual address to linear address\n");
+        ec->bb_num_executions_linaddr = 0;
+	return;
     }
-    page_vaddr -= page_vaddr % TARGET_PAGE_SIZE;
-    for (page_index = 0; page_index < page_count; page_index++) {
-        page_hwaddr = cpu_get_phys_page_debug(current_cpu, page_vaddr);
-        if (page_hwaddr == -1) {
-            fprintf(stderr, "hypermem: warning: EDFI context contains unmapped pages\n");
-            goto fail;
-        }
-        ec->bb_num_executions_hwaddr[page_index] = page_hwaddr - ptroffset;
-        page_vaddr += TARGET_PAGE_SIZE;
-    }
-    return;
-
-fail:
-    free(ec->bb_num_executions_hwaddr);
-    ec->bb_num_executions_hwaddr = NULL;
 }
 
 void edfi_context_set(
@@ -153,21 +144,36 @@ void edfi_context_set(
 void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiContext *ec) 
 {
     exec_count *bb_num_executions, count, countrep;
+    size_t bb_num_executions_count;
+    size_t bb_num_executions_size;
     int i, repeats;
 
+    if (!ec->bb_num_executions_linaddr) {
+        logprintf(state, "%s warning: cannot dump EDFI context due to "
+		"missing address\n", ec->name);
+        return;
+    }
+
     /* copy bb_num_executions (including canaries) */
-    bb_num_executions = load_from_hwaddrs((vaddr) ec->context.bb_num_executions,
-        (ec->context.num_bbs + 2) * sizeof(exec_count),
-        ec->bb_num_executions_hwaddr);
-    if (!bb_num_executions) return;
+    bb_num_executions_count = ec->context.num_bbs + 2;
+    bb_num_executions_size = bb_num_executions_count * sizeof(exec_count);
+    bb_num_executions = CALLOC(bb_num_executions_count, exec_count);
+    if (read_with_pagetable(ec->cr3, ec->cr4, ec->bb_num_executions_linaddr,
+        bb_num_executions, bb_num_executions_size) != bb_num_executions_size) {
+        fprintf(stderr, "hypermem: %s warning: cannot read EDFI context\n",
+		ec->name);
+        logprintf(state, "%s warning: cannot read EDFI context\n", ec->name);
+        goto cleanup;
+    }
 
     /* check canaries */
     if (bb_num_executions[0] != EDFI_CANARY_VALUE ||
         bb_num_executions[ec->context.num_bbs + 1] != EDFI_CANARY_VALUE) {
-        fprintf(stderr, "hypermem: %s:%d warning: bb_num_executions canaries "
-                "incorrect\n", ec->name, ec->context.num_bbs);
-        free(bb_num_executions);
-        return;
+        fprintf(stderr, "hypermem: %s warning: bb_num_executions canaries "
+                "incorrect\n", ec->name);
+        logprintf(state, "%s warning: bb_num_executions canaries incorrect\n",
+		ec->name);
+        goto cleanup;
     }    
 
     /* dump execution counts with run-length encoding */
@@ -196,6 +202,7 @@ void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiConte
     logprintf(state, "\n");
 
     /* clean up */
+cleanup:
     free(bb_num_executions);
 }
 
