@@ -138,7 +138,6 @@ size_t read_with_pagetable(uint32_t cr3, uint32_t cr4, vaddr linaddr,
         if (chunk > size) chunk = size;
 
 	if (read_pagetable(cr3, cr4, linaddr, &physaddr) < 0) break;
-	physaddr += linaddr % TARGET_PAGE_SIZE;
         if (physaddr < HYPERMEM_BASEADDR + HYPERMEM_SIZE &&
             physaddr + chunk > HYPERMEM_BASEADDR) {
             fprintf(stderr, "hypermem: warning: data to be loaded overlaps "
