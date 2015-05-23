@@ -12,17 +12,20 @@ struct hypermem_session {
 int hypermem_connect(struct hypermem_session *session);
 void hypermem_disconnect(struct hypermem_session *session);
 
-void hypermem_edfi_context_set(struct hypermem_session *session,
+void hypermem_edfi_context_set(const struct hypermem_session *session,
 	const char *name, const void *context, ptrdiff_t ptroffset);
-void hypermem_edfi_dump_stats(struct hypermem_session *session);
-void hypermem_edfi_dump_stats_module(struct hypermem_session *session,
+void hypermem_edfi_dump_stats(const struct hypermem_session *session);
+void hypermem_edfi_dump_stats_module(const struct hypermem_session *session,
 	const char *name);
-int hypermem_edfi_faultindex_get(struct hypermem_session *session,
+int hypermem_edfi_faultindex_get(const struct hypermem_session *session,
 	const char *name);
-void hypermem_fault(struct hypermem_session *session, const char *name,
+void hypermem_fault(const struct hypermem_session *session, const char *name,
 	unsigned bbindex);
-int hypermem_nop(struct hypermem_session *session);
-void hypermem_print(struct hypermem_session *session, const char *str);
-void hypermem_quit(struct hypermem_session *session);
+void hypermem_magic_register(const struct hypermem_session *session);
+void hypermem_magic_st_module(const struct hypermem_session *session);
+void hypermem_magic_st(const struct hypermem_session *session);
+int hypermem_nop(const struct hypermem_session *session);
+void hypermem_print(const struct hypermem_session *session, const char *str);
+void hypermem_quit(const struct hypermem_session *session);
 
 #endif /* !defined(HYPERMEM_H) */

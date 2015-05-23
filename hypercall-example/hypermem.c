@@ -8,7 +8,7 @@
 #include "hypermem.h"
 #include "../include/qemu/hypermem-api.h"
 
-static hypermem_entry_t hypermem_read(struct hypermem_session *session) {
+static hypermem_entry_t hypermem_read(const struct hypermem_session *session) {
 	hypermem_entry_t value;
 
 	if (pread(session->mem_fd, &value, sizeof(value), session->address) <
@@ -20,7 +20,7 @@ static hypermem_entry_t hypermem_read(struct hypermem_session *session) {
 	return value;
 }
 
-static void hypermem_write(struct hypermem_session *session,
+static void hypermem_write(const struct hypermem_session *session,
 	hypermem_entry_t value) {
 	if (pwrite(session->mem_fd, &value, sizeof(value), session->address) <
 		sizeof(value)) {
@@ -30,7 +30,7 @@ static void hypermem_write(struct hypermem_session *session,
 	}
 }
 
-static void hypermem_write_string(struct hypermem_session *session,
+static void hypermem_write_string(const struct hypermem_session *session,
 	const char *str) {
 	hypermem_entry_t buf;
 	size_t chunk, len = strlen(str);
@@ -76,7 +76,7 @@ void hypermem_disconnect(struct hypermem_session *session) {
 	}
 }
 
-void hypermem_edfi_context_set(struct hypermem_session *session,
+void hypermem_edfi_context_set(const struct hypermem_session *session,
 	const char *name, const void *context, ptrdiff_t ptroffset) {
 	hypermem_write(session, HYPERMEM_COMMAND_EDFI_CONTEXT_SET);
 	hypermem_write(session, (hypermem_entry_t) context);
@@ -84,40 +84,60 @@ void hypermem_edfi_context_set(struct hypermem_session *session,
 	hypermem_write_string(session, name);
 }
 
-void hypermem_edfi_dump_stats(struct hypermem_session *session) {
+void hypermem_edfi_dump_stats(const struct hypermem_session *session) {
 	hypermem_write(session, HYPERMEM_COMMAND_EDFI_DUMP_STATS);
 }
 
-void hypermem_edfi_dump_stats_module(struct hypermem_session *session,
+void hypermem_edfi_dump_stats_module(const struct hypermem_session *session,
 	const char *name) {
 	hypermem_write(session, HYPERMEM_COMMAND_EDFI_DUMP_STATS_MODULE);
 	hypermem_write_string(session, name);
 }
 
-int hypermem_edfi_faultindex_get(struct hypermem_session *session,
+int hypermem_edfi_faultindex_get(const struct hypermem_session *session,
 	const char *name) {
 	hypermem_write(session, HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET);
 	hypermem_write_string(session, name);
 	return hypermem_read(session);
 }
 
-void hypermem_fault(struct hypermem_session *session, const char *name,
+void hypermem_fault(const struct hypermem_session *session, const char *name,
 	unsigned bbindex) {
 	hypermem_write(session, HYPERMEM_COMMAND_FAULT);
 	hypermem_write(session, bbindex);
 	hypermem_write_string(session, name);
 }
 
-int hypermem_nop(struct hypermem_session *session) {
+void hypermem_magic_register(const struct hypermem_session *session) {
+	const char *module = "test_module";
+	hypermem_write(session, HYPERMEM_COMMAND_MAGIC_CONTEXT_SET);
+	hypermem_write(session, strlen(module));
+	hypermem_write(session, (hypermem_entry_t) (long) module);
+	hypermem_write(session, (hypermem_entry_t) 0xdeadbeef);
+	hypermem_write(session, (hypermem_entry_t) 0x1337);
+}
+
+void hypermem_magic_st_module(const struct hypermem_session *session) {
+	const char *module = "test_module";
+	hypermem_write(session, HYPERMEM_COMMAND_MAGIC_ST);
+	hypermem_write(session, strlen(module));
+	hypermem_write(session, (hypermem_entry_t) (long) module);
+}
+
+void hypermem_magic_st(const struct hypermem_session *session) {
+	hypermem_write(session, HYPERMEM_COMMAND_MAGIC_ST_ALL);
+}
+
+int hypermem_nop(const struct hypermem_session *session) {
 	hypermem_write(session, HYPERMEM_COMMAND_NOP);
 	return hypermem_read(session) == HYPERCALL_NOP_REPLY;
 }
 
-void hypermem_print(struct hypermem_session *session, const char *str) {
+void hypermem_print(const struct hypermem_session *session, const char *str) {
 	hypermem_write(session, HYPERMEM_COMMAND_PRINT);
 	hypermem_write_string(session, str);
 }
 
-void hypermem_quit(struct hypermem_session *session) {
+void hypermem_quit(const struct hypermem_session *session) {
 	hypermem_write(session, HYPERMEM_COMMAND_QUIT);
 }

@@ -8,11 +8,12 @@
 int main(int argc, char **argv) {
 	char **arg;
 	const char *cmd, *str;
+	int index;
 	int r = 0;
 	struct hypermem_session session;
 
 	if (hypermem_connect(&session) < 0) {
-		perror("cannot connect to hypervisor");
+		perror("error: cannot connect to hypervisor");
 		return 1;
 	}
 
@@ -23,19 +24,38 @@ int main(int argc, char **argv) {
 		 * to this process, not /dev/mem context
 		 */
 		cmd = *(arg++);
-		if (strcmp(cmd, "nop") == 0) {
+		if (strcmp(cmd, "dump") == 0) {
+			hypermem_edfi_dump_stats(&session);
+		} else if (strcmp(cmd, "dumpmod") == 0) {
+			str = *arg ? *(arg++) : "rs";
+			hypermem_edfi_dump_stats_module(&session, str);
+		} else if (strcmp(cmd, "fault") == 0) {
+			str = *arg ? *(arg++) : "rs";
+			index = *arg ? atoi(*(arg++)) : 0;
+			hypermem_fault(&session, str, index);
+		} else if (strcmp(cmd, "faultindex") == 0) {
+			str = *arg ? *(arg++) : "rs";
+			index = hypermem_edfi_faultindex_get(&session, str);
+			printf("%d\n", index);
+		} else if (strcmp(cmd, "magic") == 0) {
+			hypermem_magic_register(&session);
+		} else if (strcmp(cmd, "nop") == 0) {
 			if (hypermem_nop(&session)) {
 				printf("NOP return value correct\n");
 			} else {
 				printf("NOP return value incorrect\n");
+				r = 1;
 			}
 		} else if (strcmp(cmd, "print") == 0) {
-			str = *arg ? *(arg++) : "hello world";
+			str = *arg ? *(arg++) : "Checkpoint";
 			hypermem_print(&session, str);
 		} else if (strcmp(cmd, "quit") == 0) {
 			hypermem_quit(&session);
+		} else if (strcmp(cmd, "st") == 0) {
+			hypermem_magic_st(&session);
 		} else {
 			fprintf(stderr, "error: invalid command \"%s\"\n", cmd);
+			fprintf(stderr, "available commands are: dump, dumpmod, fault, faultindex, magic, nop, print, st\n");
 			r = 2;
 			break;
 		}
