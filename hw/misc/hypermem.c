@@ -205,12 +205,10 @@ static void command_edfi_context_set_write(HyperMemState *state,
 	session->state++;
 	break;
     default:
-        swap_cr3(session);
 	edfi_context_set(state, session->command_state.edfi_context_set.nameptr,
 	    session->command_state.edfi_context_set.namelen,
 	    session->command_state.edfi_context_set.contextptr, value,
 	    session->process_cr3);
-        swap_cr3(session);
 	hypermem_session_reset(session);
 	break;
     }
@@ -226,10 +224,8 @@ static void command_edfi_dump_stats_module(HyperMemState *state,
 	session->state++;
 	break;
     default:
-        swap_cr3(session);
 	edfi_dump_stats_module(state, value,
 	    session->command_state.edfi_dump_stats_module.namelen);
-        swap_cr3(session);
 	hypermem_session_reset(session);
 	break;
     }
@@ -266,9 +262,7 @@ static void command_edfi_faultindex_get_write(HyperMemState *state,
 	session->state++;
 	break;
     default:
-        swap_cr3(session);
 	command_bad_write(state, session, value);
-        swap_cr3(session);
 	break;
     }
 }
@@ -287,10 +281,8 @@ static void command_fault_write(HyperMemState *state,
 	session->state++;
 	break;
     default:
-        swap_cr3(session);
 	log_fault(state->logstate, session->command_state.fault.nameptr,
 	    session->command_state.fault.namelen, value);
-        swap_cr3(session);
 	hypermem_session_reset(session);
 	break;
     }
@@ -398,7 +390,6 @@ static void command_magic_st_module(HyperMemState *state,
         break;
     default:
         swap_cr3(session);
-
         magic_do_st(state, value,
             session->command_state.edfi_dump_stats_module.namelen);
         swap_cr3(session);
