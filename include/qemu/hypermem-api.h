@@ -21,34 +21,33 @@
  *
  * hypermem protocol - edfi context set
  * - write command identifier HYPERMEM_COMMAND_EDFI_CONTEXT_SET
- * - write module name length
- * - write module name pointer
- * - write a pointer to the EDFI context (note: physical address is stored so
- *   it must be pinned and pointers inside may not be changed afterwards)
+ * - write a pointer to the EDFI context
  * - write pointer offset used to translate pointers within the context
  *   (normally 0xc0000000 for Linux, 0 otherwise)
+ * - write a length of the module name in bytes, excluding terminator
+ * - write module name data, one hypermem_entry_t unit at a time
  *
  * hypermem protocol - edfi dump all statistics
  * - write command identifier HYPERMEM_COMMAND_EDFI_DUMP_STATS
  *
  * hypermem protocol - edfi dump statistics for module
  * - write command identifier HYPERMEM_COMMAND_EDFI_DUMP_STATS_MODULE
- * - write module name length
- * - write module name pointer
+ * - write a length of the module name in bytes, excluding terminator
+ * - write module name data, one hypermem_entry_t unit at a time
  *
  * hypermem protocol - edfi faultindex get
  * - write command identifier HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET
- * - write module name length
- * - write module name pointer
+ * - write a length of the module name in bytes, excluding terminator
+ * - write module name data, one hypermem_entry_t unit at a time
  * - read back reply
  * - the reply is the absolute basic block index where a fault should be
  *   injected; 0 means no fault, 1 means inject a fault in the first block
  *
  * hypermem protocol - fault
  * - write command identifier HYPERMEM_COMMAND_FAULT
- * - write module name length
- * - write module name pointer
  * - write basic block index
+ * - write a length of the module name in bytes, excluding terminator
+ * - write module name data, one hypermem_entry_t unit at a time
  *
 * hypermem protocol - magic_context_set
  * - write command identifier HYPERMEM_COMMAND_MAGIC_CONTEXT_SET

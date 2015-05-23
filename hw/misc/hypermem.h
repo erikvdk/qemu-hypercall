@@ -30,26 +30,12 @@ typedef struct HyperMemSessionState {
     /* command state */
     union {
         struct {
-            hypermem_entry_t namelen;
-            hypermem_entry_t nameptr;
             hypermem_entry_t contextptr;
+            hypermem_entry_t ptroffset;
         } edfi_context_set;
         struct {
-            hypermem_entry_t namelen;
-        } edfi_dump_stats_module;
-        struct {
-            hypermem_entry_t namelen;
-            hypermem_entry_t nameptr;
-        } edfi_faultindex_get;
-        struct {
-            hypermem_entry_t namelen;
-            hypermem_entry_t nameptr;
+            hypermem_entry_t bbindex;
         } fault;
-        struct {
-            hypermem_entry_t strlen;
-            hypermem_entry_t strpos;
-            char *strdata;
-        } print;
         struct {
             hypermem_entry_t namelen;
             hypermem_entry_t nameptr;
@@ -59,6 +45,9 @@ typedef struct HyperMemSessionState {
             hypermem_entry_t namelen;
         } magic_st;
     } command_state;
+    hypermem_entry_t strlen;
+    hypermem_entry_t strpos;
+    char *strdata;
 
     /* the cr3 in case we need this to do page translation */
     uint32_t process_cr3;
@@ -193,40 +182,23 @@ void magic_context_set(
 HyperMemEdfiContext *edfi_context_create(HyperMemState *state, const char *name);
 HyperMemEdfiContext *edfi_context_find(HyperMemState *state, const char *name);
 void edfi_context_release(HyperMemState *state, uint32_t process_cr3);
-void edfi_context_set_with_name(
-        HyperMemState *state, 
-        const char *name,
-        hypermem_entry_t contextptr,
-        hypermem_entry_t ptroffset,
-	uint32_t process_cr3);
 void edfi_context_set(
         HyperMemState *state,
-        hypermem_entry_t nameptr,
-        hypermem_entry_t namelen,
+        const char *name,
         hypermem_entry_t contextptr,
         hypermem_entry_t ptroffset,
 	uint32_t process_cr3);
 
 void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiContext *ec);
 void edfi_dump_stats_all(HyperMemState *state);
-void edfi_dump_stats_module_with_name(HyperMemState *state, const char *name);
-void edfi_dump_stats_module(
-        HyperMemState *state,
-        hypermem_entry_t nameptr,
-        hypermem_entry_t namelen);
+void edfi_dump_stats_module(HyperMemState *state, const char *name);
 
-hypermem_entry_t edfi_faultindex_get_with_name(HyperMemState *state, const char *name);
-hypermem_entry_t edfi_faultindex_get(
-        HyperMemState *state,
-        hypermem_entry_t nameptr,
-        hypermem_entry_t namelen);
-
+hypermem_entry_t edfi_faultindex_get(HyperMemState *state, const char *name);
 
 void flush_fault(struct logstate *state);
 void log_fault(
         HyperMemState *hmstate,
-        hypermem_entry_t nameptr,
-        hypermem_entry_t namelen,
+        const char *name,
         hypermem_entry_t bbindex);
 
 

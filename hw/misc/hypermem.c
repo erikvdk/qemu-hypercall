@@ -169,13 +169,12 @@ static void hypermem_session_reset(HyperMemSessionState *session) {
     /* end the current command on the session (if any) and clean up
      * command state
      */
-    switch (session->command) {
-    case HYPERMEM_COMMAND_PRINT:
-        if (session->command_state.print.strdata) {
-            free(session->command_state.print.strdata);
-        }
-        break;
+    if (session->strdata) {
+	free(session->strdata);
+	session->strdata = NULL;
     }
+    session->strlen = 0;
+    session->strpos = 0;
     session->command = 0;
     session->state = 0;
     memset(&session->command_state, 0, sizeof(session->command_state));
@@ -201,30 +200,65 @@ static void command_bad_write(HyperMemState *state,
     hypermem_session_reset(session);
 }
 
+static void command_write_string(HyperMemState *state,
+                                HyperMemSessionState *session,
+                                hypermem_entry_t value,
+				int stateFirst) {
+    if (session->state < stateFirst) return;
+    assert(session->state < stateFirst + 2);
+
+    if (session->state == stateFirst) {
+	/* string length */
+	session->strlen = value;
+	session->strpos = 0;
+	session->strdata =
+	    CALLOC(value + sizeof(hypermem_entry_t), char);
+	session->state = stateFirst + ((value > 0) ? 1 : 2);
+	return;
+    }
+
+    /* string data, four bytes at a time */
+    memcpy(session->strdata +
+	session->strpos,
+	&value, sizeof(hypermem_entry_t));
+    session->strpos += sizeof(hypermem_entry_t);
+    if (session->strpos < session->strlen) return;
+
+    /* terminate string once we have all the chunks */
+    if (session->strdata) {
+	session->strdata[session->strlen] = 0;
+    }
+    session->state = stateFirst + 2;
+}
+
 static void command_edfi_context_set_write(HyperMemState *state,
                               HyperMemSessionState *session,
                               hypermem_entry_t value)
 {
     switch (session->state) {
     case 0:
-	session->command_state.edfi_context_set.namelen = value;
-	session->state++;
-	break;
-    case 1:
-	session->command_state.edfi_context_set.nameptr = value;
-	session->state++;
-	break;
-    case 2:
 	session->command_state.edfi_context_set.contextptr = value;
 	session->state++;
 	break;
+    case 1:
+	session->command_state.edfi_context_set.ptroffset = value;
+	session->state++;
+	break;
+    case 2:
+    case 3:
+        command_write_string(state, session, value, 2);
+	break;
     default:
-	edfi_context_set(state, session->command_state.edfi_context_set.nameptr,
-	    session->command_state.edfi_context_set.namelen,
-	    session->command_state.edfi_context_set.contextptr, value,
+        command_bad_write(state, session, value);
+	break;
+    }
+    if (session->state > 3) {
+        edfi_context_set(state,
+	    session->strdata,
+	    session->command_state.edfi_context_set.contextptr,
+	    session->command_state.edfi_context_set.ptroffset,
 	    session->process_cr3);
 	hypermem_session_reset(session);
-	break;
     }
 }
 
@@ -234,14 +268,16 @@ static void command_edfi_dump_stats_module(HyperMemState *state,
 {
     switch (session->state) {
     case 0:
-	session->command_state.edfi_dump_stats_module.namelen = value;
-	session->state++;
+    case 1:
+        command_write_string(state, session, value, 0);
 	break;
     default:
-	edfi_dump_stats_module(state, value,
-	    session->command_state.edfi_dump_stats_module.namelen);
-	hypermem_session_reset(session);
+        command_bad_write(state, session, value);
 	break;
+    }
+    if (session->state > 1) {
+	edfi_dump_stats_module(state, session->strdata);
+	hypermem_session_reset(session);
     }
 }
 
@@ -252,9 +288,7 @@ static hypermem_entry_t command_edfi_faultindex_get_read(HyperMemState *state,
 
     switch (session->state) {
     case 2:
-	bbindex = edfi_faultindex_get(state,
-	                    session->command_state.edfi_faultindex_get.nameptr,
-	                    session->command_state.edfi_faultindex_get.namelen);
+	bbindex = edfi_faultindex_get(state, session->strdata);
 	hypermem_session_reset(session);
 	return bbindex;
     default:
@@ -268,12 +302,8 @@ static void command_edfi_faultindex_get_write(HyperMemState *state,
 {
     switch (session->state) {
     case 0:
-	session->command_state.edfi_faultindex_get.namelen = value;
-	session->state++;
-	break;
     case 1:
-	session->command_state.edfi_faultindex_get.nameptr = value;
-	session->state++;
+        command_write_string(state, session, value, 0);
 	break;
     default:
 	command_bad_write(state, session, value);
@@ -287,18 +317,21 @@ static void command_fault_write(HyperMemState *state,
 {
     switch (session->state) {
     case 0:
-	session->command_state.fault.namelen = value;
+	session->command_state.fault.bbindex = value;
 	session->state++;
 	break;
     case 1:
-	session->command_state.fault.nameptr = value;
-	session->state++;
+    case 2:
+        command_write_string(state, session, value, 1);
 	break;
     default:
-	log_fault(state, session->command_state.fault.nameptr,
-	    session->command_state.fault.namelen, value);
-	hypermem_session_reset(session);
+        command_bad_write(state, session, value);
 	break;
+    }
+    if (session->state > 2) {
+   	log_fault(state, session->strdata,
+	    session->command_state.fault.bbindex);
+	hypermem_session_reset(session);
     }
 }
 
@@ -316,31 +349,15 @@ static void command_print_write(HyperMemState *state,
 {
     switch (session->state) {
     case 0:
-	/* string length */
-	session->command_state.print.strlen = value;
-	session->command_state.print.strpos = 0;
-	session->command_state.print.strdata =
-	    CALLOC(value + sizeof(hypermem_entry_t), char);
-	session->state++;
+    case 1:
+        command_write_string(state, session, value, 0);
 	break;
     default:
-	/* string data, four bytes at a time */
-	if (session->command_state.print.strdata) {
-	    memcpy(session->command_state.print.strdata +
-	           session->command_state.print.strpos,
-	           &value, sizeof(hypermem_entry_t));
-	}
-	session->command_state.print.strpos += sizeof(hypermem_entry_t);
+        command_bad_write(state, session, value);
 	break;
     }
-
-    /* print string once we have all the chunks */
-    if (session->command_state.print.strpos >=
-        session->command_state.print.strlen) {
-	if (session->command_state.print.strdata) {
-	    session->command_state.print.strdata[session->command_state.print.strlen] = 0;
-	    logprintf(state, "print %s\n", session->command_state.print.strdata);
-	}
+    if (session->state > 1) {
+        logprintf(state, "print %s\n", session->strdata);
 	hypermem_session_reset(session);
     }
 }
@@ -405,7 +422,7 @@ static void command_magic_st_module(HyperMemState *state,
     default:
         swap_cr3(session);
         magic_do_st(state, value,
-            session->command_state.edfi_dump_stats_module.namelen);
+            session->command_state.magic_st.namelen);
         swap_cr3(session);
         hypermem_session_reset(session);
         break;

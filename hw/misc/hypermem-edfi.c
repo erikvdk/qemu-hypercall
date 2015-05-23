@@ -62,7 +62,7 @@ void edfi_context_release(
     }
 }
 
-void edfi_context_set_with_name(
+void edfi_context_set(
         HyperMemState *state,
         const char *name,
         hypermem_entry_t contextptr,
@@ -75,6 +75,7 @@ void edfi_context_set_with_name(
     vaddr contextptr_lin;
     bool kvm_vcpu_dirty;
 
+    /* retrieve registers (for CR4) */
     kvm_vcpu_dirty = cs->kvm_vcpu_dirty;
     cpu_synchronize_state(cs);
     cs->kvm_vcpu_dirty = kvm_vcpu_dirty;
@@ -102,12 +103,12 @@ void edfi_context_set_with_name(
     if (!vaddr_to_laddr(state, contextptr, &contextptr_lin)) {
         logprinterr(state, "warning: cannot convert contextptr to "
 	    "linear address module=%s\n", name);
-        return;
+	return;
     }
     if (read_with_pagetable(state, ec->cr3, ec->cr4, contextptr_lin,
 	&ec->context, sizeof(ec->context)) != sizeof(ec->context)) {
         logprinterr(state, "warning: cannot read EDFI context module=%s\n", name);
-        return;
+	return;
     }
 
     /* verify canary */
@@ -115,7 +116,7 @@ void edfi_context_set_with_name(
         ec->context.canary_value2 != EDFI_CANARY_VALUE) {
         logprinterr(state, "warning: EDFI context canaries incorrect "
 	    "module=%s\n", name);
-        return;
+	return;
     }
 
     /* store linear addresse for bb_num_executions */
@@ -126,27 +127,6 @@ void edfi_context_set_with_name(
         ec->bb_num_executions_linaddr = 0;
 	return;
     }
-}
-
-void edfi_context_set(
-        HyperMemState *state,
-        hypermem_entry_t nameptr,
-        hypermem_entry_t namelen,
-        hypermem_entry_t contextptr,
-        hypermem_entry_t ptroffset,
-	uint32_t process_cr3)
-{
-    char *name;
-
-    /* read module name from VM */
-    name = read_string(state, nameptr, namelen);
-    if (!name) return;
-
-    /* now that we have the name, do the actual work */
-    edfi_context_set_with_name(state, name, contextptr, ptroffset, process_cr3);
-
-    /* clean up */
-    free(name);
 }
 
 void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiContext *ec) 
@@ -221,7 +201,7 @@ void edfi_dump_stats_all(HyperMemState *state)
     }
 }
 
-void edfi_dump_stats_module_with_name(HyperMemState *state, const char *name)
+void edfi_dump_stats_module(HyperMemState *state, const char *name)
 {
     HyperMemEdfiContext *ec = edfi_context_find(state, name);
 
@@ -232,25 +212,7 @@ void edfi_dump_stats_module_with_name(HyperMemState *state, const char *name)
     }
 }
 
-void edfi_dump_stats_module(
-        HyperMemState *state,
-        hypermem_entry_t nameptr,
-        hypermem_entry_t namelen)
-{
-    char *name;
-
-    /* read module name from VM */
-    name = read_string(state, nameptr, namelen);
-    if (!name) return;
-
-    /* now that we have the name, do the actual work */
-    edfi_dump_stats_module_with_name(state, name);
-
-    /* clean up */
-    free(name);
-}
-
-hypermem_entry_t edfi_faultindex_get_with_name(HyperMemState *state, const char *name)
+hypermem_entry_t edfi_faultindex_get(HyperMemState *state, const char *name)
 {
     int bbindex;
     const char *faultspec, *next;
@@ -302,26 +264,6 @@ hypermem_entry_t edfi_faultindex_get_with_name(HyperMemState *state, const char 
     return 0;
 }
 
-hypermem_entry_t edfi_faultindex_get(
-        HyperMemState *state,
-        hypermem_entry_t nameptr,
-        hypermem_entry_t namelen)
-{
-    hypermem_entry_t bbindex;
-    char *name;
-
-    /* read module name from VM */
-    name = read_string(state, nameptr, namelen);
-    if (!name) return 0;
-
-    /* now that we have the name, do the actual work */
-    bbindex = edfi_faultindex_get_with_name(state, name);
-
-    /* clean up */
-    free(name);
-    return bbindex;
-}
-
 #define FAULT_COUNT_DIRECT_TO_LOG 3
 
 void flush_fault(struct logstate *state)
@@ -346,16 +288,10 @@ void flush_fault(struct logstate *state)
 
 void log_fault(
         HyperMemState *hmstate,
-        hypermem_entry_t nameptr,
-        hypermem_entry_t namelen,
+        const char *name,
         hypermem_entry_t bbindex)
 {
-    char *name;
     struct logstate *state = hmstate->logstate;
-
-    /* read module name from VM */
-    name = read_string(hmstate, nameptr, namelen);
-    if (!name) return;
 
     if (state->fault_name && (
         strcmp(state->fault_name, name) != 0 || state->fault_bbindex != bbindex)) {
@@ -363,10 +299,11 @@ void log_fault(
     }
 
     if (!state->fault_name) {
-        state->fault_name = name;
+        state->fault_name = strdup(name);
+	if (!state->fault_name) {
+	    logprinterr(hmstate, "strdup failed: %s\n", strerror(errno));
+	}
         state->fault_bbindex = bbindex;
-    } else {
-        free(name);
     }
 
     /* log fault */
