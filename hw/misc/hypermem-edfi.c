@@ -81,7 +81,7 @@ void edfi_context_set_with_name(
     cs->kvm_vcpu_dirty = kvm_vcpu_dirty;
 
     /* check that paging is enabled */
-    if (cpu_paging_enabled(cs)) {
+    if (!cpu_paging_enabled(cs)) {
         fprintf(stderr, "hypermem: warning: cannot set page table with paging disabled module=%s\n", name);
         logprintf(state, "warning: cannot set page table with paging disabled module=%s\n", name);
 	return;
