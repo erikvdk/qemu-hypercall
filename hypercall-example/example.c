@@ -51,11 +51,18 @@ int main(int argc, char **argv) {
 			hypermem_print(&session, str);
 		} else if (strcmp(cmd, "quit") == 0) {
 			hypermem_quit(&session);
+		} else if (strcmp(cmd, "releasecr3") == 0) {
+			index = *arg ? atoi(*(arg++)) : 0;
+			hypermem_release_cr3(&session, index);
+		} else if (strcmp(cmd, "setcr3") == 0) {
+			index = *arg ? atoi(*(arg++)) : 0;
+			hypermem_set_cr3(&session, index);
 		} else if (strcmp(cmd, "st") == 0) {
 			hypermem_magic_st(&session);
 		} else {
 			fprintf(stderr, "error: invalid command \"%s\"\n", cmd);
-			fprintf(stderr, "available commands are: dump, dumpmod, fault, faultindex, magic, nop, print, st\n");
+			fprintf(stderr, "available commands are: dump, dumpmod, fault, faultindex, magic, nop, print,\n");
+			fprintf(stderr, "                        releasecr3, setcr3, st\n");
 			r = 2;
 			break;
 		}

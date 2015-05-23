@@ -141,3 +141,14 @@ void hypermem_print(const struct hypermem_session *session, const char *str) {
 void hypermem_quit(const struct hypermem_session *session) {
 	hypermem_write(session, HYPERMEM_COMMAND_QUIT);
 }
+
+void hypermem_release_cr3(const struct hypermem_session *session,
+                          uint32_t cr3) {
+    hypermem_write(session, HYPERMEM_COMMAND_RELEASE_CR3);
+    hypermem_write(session, (hypermem_entry_t)cr3);
+}
+
+void hypermem_set_cr3(const struct hypermem_session *session, uint32_t cr3) {
+    hypermem_write(session, HYPERMEM_COMMAND_SET_CR3);
+    hypermem_write(session, (hypermem_entry_t)cr3);
+}

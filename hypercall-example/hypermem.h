@@ -2,6 +2,7 @@
 #define HYPERMEM_H
 
 #include <stddef.h>
+#include <stdint.h>
 #include <sys/types.h>
 
 struct hypermem_session {
@@ -27,5 +28,8 @@ void hypermem_magic_st(const struct hypermem_session *session);
 int hypermem_nop(const struct hypermem_session *session);
 void hypermem_print(const struct hypermem_session *session, const char *str);
 void hypermem_quit(const struct hypermem_session *session);
+void hypermem_release_cr3(const struct hypermem_session *session,
+    uint32_t cr3);
+void hypermem_set_cr3(const struct hypermem_session *session, uint32_t cr3);
 
 #endif /* !defined(HYPERMEM_H) */
