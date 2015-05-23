@@ -77,7 +77,8 @@ void edfi_context_set_with_name(
 
     /* check that paging is enabled */
     if (!cpu_paging_enabled(cs)) {
-        logprintf(state, "error: cannot set pageable with paging disabled module=%s\n", name);
+        fprintf(stderr, "hypermem: warning: cannot set page table with paging disabled module=%s\n", name);
+        logprintf(state, "warning: cannot set page table with paging disabled module=%s\n", name);
 	return;
     }
 
@@ -95,26 +96,30 @@ void edfi_context_set_with_name(
 
     /* read EDFI context */
     if (!vaddr_to_laddr(contextptr, &contextptr_lin)) {
+        fprintf(stderr, "hypermem: warning: cannot convert contextptr to linear address module=%s\n", name);
+        logprintf(state, "warning: cannot convert contextptr to linear address module=%s\n", name);
         return;
     }
     if (read_with_pagetable(ec->cr3, ec->cr4, contextptr_lin,
 	&ec->context, sizeof(ec->context)) != sizeof(ec->context)) {
-        fprintf(stderr, "hypermem: warning: cannot read EDFI context\n");
+        fprintf(stderr, "hypermem: warning: cannot read EDFI context module=%s\n", name);
+        logprintf(state, "warning: cannot read EDFI context module=%s\n", name);
         return;
     }
 
     /* verify canary */
     if (ec->context.canary_value1 != EDFI_CANARY_VALUE ||
         ec->context.canary_value2 != EDFI_CANARY_VALUE) {
-        fprintf(stderr, "hypermem: warning: EDFI context canaries incorrect\n");
+        fprintf(stderr, "hypermem: warning: EDFI context canaries incorrect module=%s\n", name);
+        logprintf(state, "warning: EDFI context canaries incorrect module=%s\n", name);
         return;
     }
 
     /* store linear addresse for bb_num_executions */
     if (!vaddr_to_laddr((vaddr) ec->context.bb_num_executions,
         &ec->bb_num_executions_linaddr)) {
-        fprintf(stderr, "hypermem: warning: cannot convert EDFI context "
-		"virtual address to linear address\n");
+        fprintf(stderr, "hypermem: warning: cannot convert EDFI context virtual address to linear address module=%s\n", name);
+        logprintf(state, "warning: cannot convert EDFI context virtual address to linear address module=%s\n", name);
         ec->bb_num_executions_linaddr = 0;
 	return;
     }
