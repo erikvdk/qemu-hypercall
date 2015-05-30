@@ -36,7 +36,7 @@ HyperMemMagicContext *magic_context_create(HyperMemState *state, const char *nam
     }
     mc->name = strdup(name);
     if (!mc->name) {
-        logprinterr(state, "hypermem: error: strdup failed: %s\n",
+        logprinterr(state, "error: strdup failed: %s\n",
             strerror(errno));
         free(mc);
         return NULL;

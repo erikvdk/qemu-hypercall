@@ -301,7 +301,7 @@ void log_fault(
     if (!state->fault_name) {
         state->fault_name = strdup(name);
 	if (!state->fault_name) {
-	    logprinterr(hmstate, "strdup failed: %s\n", strerror(errno));
+	    logprinterr(hmstate, "error: strdup failed: %s\n", strerror(errno));
 	}
         state->fault_bbindex = bbindex;
     }
