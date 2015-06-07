@@ -129,7 +129,7 @@ void edfi_context_set(
     }
 }
 
-void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiContext *ec) 
+void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiContext *ec, const char *msg)
 {
     exec_count *bb_num_executions, count, countrep;
     size_t bb_num_executions_count;
@@ -138,7 +138,7 @@ void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiConte
 
     if (!ec->bb_num_executions_linaddr) {
         logprinterr(state, "warning: cannot dump EDFI context due to "
-		"missing address module=%s\n", ec->name);
+		"missing address module=%s msg=%s\n", ec->name, msg);
         return;
     }
 
@@ -148,8 +148,8 @@ void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiConte
     bb_num_executions = CALLOC(bb_num_executions_count, exec_count);
     if (read_with_pagetable(state, ec->cr3, ec->cr4, ec->bb_num_executions_linaddr,
         bb_num_executions, bb_num_executions_size) != bb_num_executions_size) {
-        logprinterr(state, "warning: cannot read EDFI context module=%s\n",
-	    ec->name);
+        logprinterr(state, "warning: cannot read EDFI context module=%s msg=%s\n",
+	    ec->name, msg);
         goto cleanup;
     }
 
@@ -157,12 +157,12 @@ void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiConte
     if (bb_num_executions[0] != EDFI_CANARY_VALUE ||
         bb_num_executions[ec->context.num_bbs + 1] != EDFI_CANARY_VALUE) {
         logprinterr(state, "warning: bb_num_executions canaries incorrect "
-	    "module=%s\n", ec->name);
+	    "module=%s msg=%s\n", ec->name, msg);
         goto cleanup;
     }    
 
     /* dump execution counts with run-length encoding */
-    logprintf(state, "edfi_dump_stats_module name=%s", ec->name);
+    logprintf(state, "edfi_dump_stats_module name=%s msg=%s bbs=", ec->name, msg);
     countrep = 0;
     repeats = 0;
     for (i = 1; i <= ec->context.num_bbs; i++) {
@@ -191,24 +191,24 @@ cleanup:
     free(bb_num_executions);
 }
 
-void edfi_dump_stats_all(HyperMemState *state)
+void edfi_dump_stats_all(HyperMemState *state, const char *msg)
 {
     HyperMemEdfiContext *ec;
 
-    logprintf(state, "edfi_dump_stats\n");
+    logprintf(state, "edfi_dump_stats msg=%s\n", msg);
     for (ec = state->edfi_context; ec; ec = ec->next) {
-        edfi_dump_stats_module_with_context(state, ec);
+        edfi_dump_stats_module_with_context(state, ec, msg);
     }
 }
 
-void edfi_dump_stats_module(HyperMemState *state, const char *name)
+void edfi_dump_stats_module(HyperMemState *state, const char *name, const char *msg)
 {
     HyperMemEdfiContext *ec = edfi_context_find(state, name);
 
     if (ec) {
-        edfi_dump_stats_module_with_context(state, ec);
+        edfi_dump_stats_module_with_context(state, ec, msg);
     } else {
-        logprintf(state, "edfi_dump_stats_module name=%s no context known\n", name);
+        logprintf(state, "edfi_dump_stats_module name=%s msg=%s no context known\n", name, msg);
     }
 }
 

@@ -29,11 +29,15 @@
  *
  * hypermem protocol - edfi dump all statistics
  * - write command identifier HYPERMEM_COMMAND_EDFI_DUMP_STATS
+ * - write length of the message in bytes, excluding terminator
+ * - write message data, one hypermem_entry_t unit at a time
  *
  * hypermem protocol - edfi dump statistics for module
  * - write command identifier HYPERMEM_COMMAND_EDFI_DUMP_STATS_MODULE
  * - write length of the module name in bytes, excluding terminator
  * - write module name data, one hypermem_entry_t unit at a time
+ * - write length of the message in bytes, excluding terminator
+ * - write message data, one hypermem_entry_t unit at a time
  *
  * hypermem protocol - edfi faultindex get
  * - write command identifier HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET

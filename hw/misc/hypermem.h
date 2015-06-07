@@ -22,6 +22,8 @@
  * since the protocol forced upon as has quite some restrictions
  */
 
+#define HYPEMEM_STR_COUNT_MAX 2
+ 
 typedef struct HyperMemSessionState {
     int active;
     int command;
@@ -47,7 +49,7 @@ typedef struct HyperMemSessionState {
     } command_state;
     hypermem_entry_t strlen;
     hypermem_entry_t strpos;
-    char *strdata;
+    char *strdata[HYPEMEM_STR_COUNT_MAX];
 
     /* the cr3 in case we need this to do page translation */
     uint32_t process_cr3;
@@ -189,9 +191,9 @@ void edfi_context_set(
         hypermem_entry_t ptroffset,
 	uint32_t process_cr3);
 
-void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiContext *ec);
-void edfi_dump_stats_all(HyperMemState *state);
-void edfi_dump_stats_module(HyperMemState *state, const char *name);
+void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiContext *ec, const char *msg);
+void edfi_dump_stats_all(HyperMemState *state, const char *msg);
+void edfi_dump_stats_module(HyperMemState *state, const char *name, const char *msg);
 
 hypermem_entry_t edfi_faultindex_get(HyperMemState *state, const char *name);
 

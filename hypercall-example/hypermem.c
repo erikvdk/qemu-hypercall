@@ -84,14 +84,17 @@ void hypermem_edfi_context_set(const struct hypermem_session *session,
 	hypermem_write_string(session, name);
 }
 
-void hypermem_edfi_dump_stats(const struct hypermem_session *session) {
+void hypermem_edfi_dump_stats(const struct hypermem_session *session,
+	const char *message) {
 	hypermem_write(session, HYPERMEM_COMMAND_EDFI_DUMP_STATS);
+	hypermem_write_string(session, message);
 }
 
 void hypermem_edfi_dump_stats_module(const struct hypermem_session *session,
-	const char *name) {
+	const char *name, const char *message) {
 	hypermem_write(session, HYPERMEM_COMMAND_EDFI_DUMP_STATS_MODULE);
 	hypermem_write_string(session, name);
+	hypermem_write_string(session, message);
 }
 
 int hypermem_edfi_faultindex_get(const struct hypermem_session *session,

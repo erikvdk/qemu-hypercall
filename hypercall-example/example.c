@@ -7,7 +7,7 @@
 
 int main(int argc, char **argv) {
 	char **arg;
-	const char *cmd, *str;
+	const char *cmd, *str, *str2;
 	int index;
 	int r = 0;
 	struct hypermem_session session;
@@ -25,10 +25,12 @@ int main(int argc, char **argv) {
 		 */
 		cmd = *(arg++);
 		if (strcmp(cmd, "dump") == 0) {
-			hypermem_edfi_dump_stats(&session);
+			str = *arg ? *(arg++) : "hypermemclient";
+			hypermem_edfi_dump_stats(&session, str);
 		} else if (strcmp(cmd, "dumpmod") == 0) {
 			str = *arg ? *(arg++) : "rs";
-			hypermem_edfi_dump_stats_module(&session, str);
+			str2 = *arg ? *(arg++) : "hypermemclient";
+			hypermem_edfi_dump_stats_module(&session, str, str2);
 		} else if (strcmp(cmd, "fault") == 0) {
 			str = *arg ? *(arg++) : "rs";
 			index = *arg ? atoi(*(arg++)) : 0;
