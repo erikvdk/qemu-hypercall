@@ -52,6 +52,7 @@ void edfi_context_release(
     ec_p = &state->edfi_context;
     while ((ec = *ec_p)) {
         if (ec->cr3 == process_cr3) {
+	    edfi_dump_stats_module_with_context(state, ec, "edfi_context_release");
             logprintf(state, "EDFI context release module=%s\n", ec->name);
 	    *ec_p = ec->next;
 	    free(ec->name);
