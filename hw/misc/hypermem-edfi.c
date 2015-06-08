@@ -43,16 +43,18 @@ HyperMemEdfiContext *edfi_context_find(HyperMemState *state, const char *name)
     return NULL;
 }
 
-void edfi_context_release(
+static void edfi_context_release_internal(
 	HyperMemState *state,
-	uint32_t process_cr3)
+	uint32_t process_cr3,
+	int all)
 {
     HyperMemEdfiContext *ec, **ec_p;
 
     ec_p = &state->edfi_context;
     while ((ec = *ec_p)) {
-        if (ec->cr3 == process_cr3) {
-	    edfi_dump_stats_module_with_context(state, ec, "edfi_context_release");
+        if (all || ec->cr3 == process_cr3) {
+	    edfi_dump_stats_module_with_context(state, ec,
+		all ? "edfi_context_release_all" : "edfi_context_release");
             logprintf(state, "EDFI context release module=%s\n", ec->name);
 	    *ec_p = ec->next;
 	    free(ec->name);
@@ -61,6 +63,19 @@ void edfi_context_release(
 	    ec_p = &ec->next;
 	}
     }
+}
+
+void edfi_context_release(
+	HyperMemState *state,
+	uint32_t process_cr3)
+{
+    edfi_context_release_internal(state, process_cr3, 0);
+}
+
+void edfi_context_release_all(
+	HyperMemState *state)
+{
+    edfi_context_release_internal(state, 0, 1);
 }
 
 void edfi_context_set(

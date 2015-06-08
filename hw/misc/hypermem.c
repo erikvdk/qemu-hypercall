@@ -32,7 +32,6 @@
 
 static struct logstate *global_logstate;
 
-
 static Property hypermem_props[] = {
     DEFINE_PROP_STRING("logpath", HyperMemState, logpath),
     DEFINE_PROP_BOOL("flushlog", HyperMemState, flushlog, false),
@@ -806,6 +805,13 @@ static void hypermem_realizefn(DeviceState *dev, Error **errp)
     memory_region_set_coalescing(&s->io);
 }
 
+static void hypermem_reset(DeviceState *dev) {
+    HyperMemState *s = HYPERMEM(dev);
+
+    logprintf(s, "QEMU hypermem reset\n");
+    edfi_context_release_all(s);
+}
+
 static void hypermem_class_initfn(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
@@ -815,6 +821,7 @@ static void hypermem_class_initfn(ObjectClass *klass, void *data)
 #endif
     dc->realize = hypermem_realizefn;
     dc->props   = hypermem_props;
+    dc->reset   = hypermem_reset;
 }
 
 static const TypeInfo hypermem_info = {

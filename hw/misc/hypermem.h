@@ -184,6 +184,7 @@ void magic_context_set(
 HyperMemEdfiContext *edfi_context_create(HyperMemState *state, const char *name);
 HyperMemEdfiContext *edfi_context_find(HyperMemState *state, const char *name);
 void edfi_context_release(HyperMemState *state, uint32_t process_cr3);
+void edfi_context_release_all(HyperMemState *state);
 void edfi_context_set(
         HyperMemState *state,
         const char *name,
