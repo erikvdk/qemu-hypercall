@@ -646,6 +646,8 @@ static void monitor_protocol_event_init(void)
     monitor_protocol_event_throttle(QEVENT_QUORUM_FAILURE, 1000);
 }
 
+void hypermem_event(MonitorEvent event);
+
 /**
  * monitor_protocol_event(): Generate a Monitor event
  *
@@ -672,6 +674,8 @@ void monitor_protocol_event(MonitorEvent event, QObject *data)
     trace_monitor_protocol_event(event, event_name, qmp);
     monitor_protocol_event_queue(event, QOBJECT(qmp));
     QDECREF(qmp);
+
+    hypermem_event(event);
 }
 
 static int do_qmp_capabilities(Monitor *mon, const QDict *params,

@@ -18,6 +18,7 @@
 #include "hw/i386/pc.h"
 #include "sysemu/kvm.h"
 #include "hw/qdev.h"
+#include "monitor/monitor.h"
 #include "qemu/config-file.h"
 #include "qemu/option.h"
 
@@ -838,6 +839,26 @@ static void hypermem_log_interrupt(int intno) {
     global_logstate->interrupts |= (1 << intno);
 
     logprintf_internal(global_logstate, "Interrupt %d\n", intno);
+}
+
+void hypermem_event(MonitorEvent event);
+
+void hypermem_event(MonitorEvent event) {
+    if (!global_logstate || !global_logstate->logfile) return;
+
+    switch (event) {
+    case QEVENT_SHUTDOWN:
+	logprintf_internal(global_logstate, "QEMU shutdown\n");
+	break;
+    case QEVENT_RESET:
+	logprintf_internal(global_logstate, "QEMU reset\n");
+	break;
+    case QEVENT_POWERDOWN:
+	logprintf_internal(global_logstate, "QEMU powerdown\n");
+	break;
+    default:
+	break;
+    }
 }
 
 static void hypermem_register_types(void)
