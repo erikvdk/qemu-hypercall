@@ -78,7 +78,7 @@ void edfi_context_release_all(
     edfi_context_release_internal(state, 0, 1);
 }
 
-static uint32_t get_cr4(HyperMemState *state) {
+static uint32_t get_cr4(HyperMemState *state, const char *name) {
     CPUState *cs;
     X86CPU *cpu;
     bool kvm_vcpu_dirty;
@@ -101,7 +101,7 @@ static uint32_t get_cr4(HyperMemState *state) {
     if (!cpu_paging_enabled(cs)) {
         logprinterr(state, "warning: cannot set page table with "
 	    "paging disabled module=%s\n", name);
-	return;
+	return 0;
     }
  
     /* store CR4 */
@@ -124,7 +124,8 @@ void edfi_context_set(
     uint32_t cr4;
 
     /* check paging and fetch CR4 */
-    cr4 = get_cr4(state);
+    cr4 = get_cr4(state, name);
+    if (!state->cr4_ok) return;
 
     /* overwrite if we've seen this module before */
     ec = edfi_context_find(state, name);
