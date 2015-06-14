@@ -83,6 +83,10 @@ typedef struct HyperMemState
     struct logstate *logstate;
     int logfile_driveindex;
 
+    /* CPU state */
+    uint32_t cr4;
+    int cr4_ok;
+
     /* EDFI contexts (linked list) */
     HyperMemEdfiContext *edfi_context;
 

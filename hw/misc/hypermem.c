@@ -810,6 +810,7 @@ static void hypermem_reset(DeviceState *dev) {
 
     logprintf(s, "QEMU hypermem reset\n");
     edfi_context_release_all(s);
+    s->cr4_ok = 0;
 }
 
 static void hypermem_class_initfn(ObjectClass *klass, void *data)

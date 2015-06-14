@@ -78,20 +78,21 @@ void edfi_context_release_all(
     edfi_context_release_internal(state, 0, 1);
 }
 
-void edfi_context_set(
-        HyperMemState *state,
-        const char *name,
-        hypermem_entry_t contextptr,
-        hypermem_entry_t ptroffset,
-	uint32_t process_cr3)
-{
-    CPUState *cs = current_cpu;
-    X86CPU *cpu = X86_CPU(cs);
-    HyperMemEdfiContext *ec;
-    vaddr contextptr_lin;
+static uint32_t get_cr4(HyperMemState *state) {
+    CPUState *cs;
+    X86CPU *cpu;
     bool kvm_vcpu_dirty;
 
-    /* retrieve registers (for CR4) */
+    assert(state);
+
+    /* assumption: CR4 is not changed after the first call;
+     * this helps avoid trouble if current_cpu is ever NULL on later calls
+     */
+    if (state->cr4_ok) return state->cr4;
+
+    /* retrieve registers */
+    cs = current_cpu;
+    assert(cs);
     kvm_vcpu_dirty = cs->kvm_vcpu_dirty;
     cpu_synchronize_state(cs);
     cs->kvm_vcpu_dirty = kvm_vcpu_dirty;
@@ -102,6 +103,28 @@ void edfi_context_set(
 	    "paging disabled module=%s\n", name);
 	return;
     }
+ 
+    /* store CR4 */
+    cpu = X86_CPU(cs);
+    assert(cpu);
+    state->cr4 = cpu->env.cr[4];
+    state->cr4_ok = 1;
+    return state->cr4;
+}
+
+void edfi_context_set(
+        HyperMemState *state,
+        const char *name,
+        hypermem_entry_t contextptr,
+        hypermem_entry_t ptroffset,
+	uint32_t process_cr3)
+{
+    HyperMemEdfiContext *ec;
+    vaddr contextptr_lin;
+    uint32_t cr4;
+
+    /* check paging and fetch CR4 */
+    cr4 = get_cr4(state);
 
     /* overwrite if we've seen this module before */
     ec = edfi_context_find(state, name);
@@ -113,7 +136,7 @@ void edfi_context_set(
         logprintf(state, "EDFI context set module=%s\n", name);
     }
     ec->cr3 = process_cr3;
-    ec->cr4 = cpu->env.cr[4];
+    ec->cr4 = cr4;
 
     /* read EDFI context */
     if (!vaddr_to_laddr(state, contextptr, &contextptr_lin)) {
