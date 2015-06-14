@@ -154,6 +154,7 @@ static unsigned hypermem_session_allocate(HyperMemState *state)
 	session_next++;
     }
 
+    logprinterr(state, "warning: sessions exhausted\n");
     return 0;
 }
 
