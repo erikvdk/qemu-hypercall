@@ -30,6 +30,12 @@
 
 #include "hypermem.h"
 
+#ifdef HYPERMEM_DEBUG
+#define dbgprintf(format, ...) fprintf(stderr, "hypermem debug: " format, ##__VA_ARGS__)
+#else
+#define dbgprintf(format, ...)
+#endif
+
 static struct logstate *global_logstate;
 
 static Property hypermem_props[] = {
@@ -532,9 +538,7 @@ static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
     unsigned session_id;
     hypermem_entry_t value;
 
-#ifdef HYPERMEM_DEBUG
-    printf("hypermem: read_internal; addr=0x%lx\n", (long) addr);
-#endif
+    dbgprintf("read_internal; addr=0x%lx\n", (long) addr);
 
     /* verify address */
     entry = addr / sizeof(hypermem_entry_t);
@@ -547,10 +551,8 @@ static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
     /* reads from base set up sessions */
     if (entry == 0) {
         session_id = hypermem_session_allocate(state);
-#ifdef HYPERMEM_DEBUG
-	printf("hypermem: set up new session %u at 0x%lx\n",
+	dbgprintf("set up new session %u at 0x%lx\n",
 	       session_id, (long) hypermem_session_get_address(session_id));
-#endif
 	return hypermem_session_get_address(session_id);
     }
 
@@ -561,9 +563,7 @@ static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
 	return 0;
     }
     value = handle_session_read(state, &state->sessions[entry]);
-#ifdef HYPERMEM_DEBUG
-    printf("hypermem: read_internal value 0x%lx\n", (long) value);
-#endif
+    dbgprintf("read_internal value 0x%lx\n", (long) value);
     return value;
 }
 
@@ -574,10 +574,8 @@ static void hypermem_mem_write_internal(HyperMemState *state,
     hwaddr entry;
     unsigned session_id;
 
-#ifdef HYPERMEM_DEBUG
-    printf("hypermem: write_internal; addr=0x%lx, value=0x%lx\n",
+    dbgprintf("write_internal; addr=0x%lx, value=0x%lx\n",
 	(long) addr, (long) mem_value);
-#endif
 
     /* verify address */
     entry = addr / sizeof(hypermem_entry_t);
@@ -601,10 +599,8 @@ static void hypermem_mem_write_internal(HyperMemState *state,
 		    session_id, (long) mem_value);
 	    return;
 	}
-#ifdef HYPERMEM_DEBUG
-	printf("hypermem: tearing down session %u at 0x%lx\n",
+	dbgprintf("tearing down session %u at 0x%lx\n",
 	       session_id, (long) mem_value);
-#endif
 	hypermem_session_reset(&state->sessions[session_id]);
 	state->sessions[session_id].active = 0;
 	return;
@@ -670,12 +666,13 @@ static uint64_t hypermem_mem_read(void *opaque, hwaddr addr,
     HyperMemState *state = opaque;
     int64_t value;
 
-#ifdef HYPERMEM_DEBUG
-    printf("hypermem: read; addr=0x%lx, size=0x%x\n", (long) addr, size);
-#endif
+    dbgprintf("read; addr=0x%lx, size=0x%x\n", (long) addr, size);
 
     /* ignore curses updates */
-    if (!current_cpu) return 0;
+    if (!current_cpu) {
+	dbgprintf("read ignored\n");
+	return 0;
+    }
 
     /* find a pending operation that has these bytes available for reading */
     op = hypermem_find_pending_operation(state, 0, addr, size, &bytemask);
@@ -695,9 +692,7 @@ static uint64_t hypermem_mem_read(void *opaque, hwaddr addr,
     memcpy(&value, (char *) &op->value + (addr - op->baseaddr), size);
     op->bytemask &= ~bytemask;
 
-#ifdef HYPERMEM_DEBUG
-    printf("hypermem: read value 0x%llx\n", (long long) value);
-#endif
+    dbgprintf("read value 0x%llx\n", (long long) value);
     return value;
 }
 
@@ -710,13 +705,14 @@ static void hypermem_mem_write(void *opaque,
     HyperMemPendingOperation *op;
     HyperMemState *state = opaque;
 
-#ifdef HYPERMEM_DEBUG
-    printf("hypermem: write; addr=0x%lx, value=0x%lx, size=0x%lx\n",
+    dbgprintf("write; addr=0x%lx, value=0x%lx, size=0x%lx\n",
 	(long) addr, (long) mem_value, (long) size);
-#endif
 
     /* ignore curses updates */
-    if (!current_cpu) return;
+    if (!current_cpu) {
+	dbgprintf("write ignored\n");
+	return;
+    }
 
     /* find a pending operation that has these bytes available for reading */
     op = hypermem_find_pending_operation(state, 1, addr, size, &bytemask);
@@ -766,14 +762,12 @@ static void hypermem_realizefn(DeviceState *dev, Error **errp)
     HyperMemState *s = HYPERMEM(dev);
 
     /* open log file */
-#ifdef HYPERMEM_DEBUG
     if (s->logpath) {
-	printf("hypermem: log path \"%s\", %sflushing on every write\n",
+	dbgprintf("log path \"%s\", %sflushing on every write\n",
 	    s->logpath, s->flushlog ? "" : "not ");
     } else {
-	printf("hypermem: logging to stdout\n");
+	dbgprintf("logging to stdout\n");
     }
-#endif
     global_logstate = s->logstate =
 	(struct logstate *) calloc(1, sizeof(struct logstate));
     s->logstate->flushlog = s->flushlog;
@@ -797,11 +791,9 @@ static void hypermem_realizefn(DeviceState *dev, Error **errp)
     qemu_opts_foreach(qemu_find_opts("drive"), log_drive_options, s, 0);
 
     /* reserve memory area */
-#ifdef HYPERMEM_DEBUG
-    printf("hypermem: realize; HYPERMEM_BASEADDR=0x%lx, HYPERMEM_SIZE=0x%lx, "
+    dbgprintf("realize; HYPERMEM_BASEADDR=0x%lx, HYPERMEM_SIZE=0x%lx, "
 	"isa_mem_base=0x%lx\n", (long) HYPERMEM_BASEADDR, (long) HYPERMEM_SIZE,
 	(long) isa_mem_base);
-#endif
     memory_region_init_io(&s->io, OBJECT(dev), &hypermem_mem_ops, s,
                           "hypermem-mem", HYPERMEM_SIZE);
     memory_region_set_flush_coalesced(&s->io);
@@ -814,6 +806,7 @@ static void hypermem_realizefn(DeviceState *dev, Error **errp)
 static void hypermem_reset(DeviceState *dev) {
     HyperMemState *s = HYPERMEM(dev);
 
+    dbgprintf("reset\n");
     logprintf(s, "QEMU hypermem reset\n");
     edfi_context_release_all(s);
     s->cr4_ok = 0;
@@ -823,9 +816,7 @@ static void hypermem_class_initfn(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
-#ifdef HYPERMEM_DEBUG
-    printf("hypermem: class init\n");
-#endif
+    dbgprintf("class init\n");
     dc->realize = hypermem_realizefn;
     dc->props   = hypermem_props;
     dc->reset   = hypermem_reset;
@@ -839,13 +830,21 @@ static const TypeInfo hypermem_info = {
 };
 
 static void hypermem_cleanup(void) {
-    if (!global_logstate || !global_logstate->logfile) return;
+    dbgprintf("cleanup\n");
+    if (!global_logstate || !global_logstate->logfile) {
+	dbgprintf("cleanup ignored\n");
+	return;
+    }
     logprintf_internal(global_logstate, "QEMU exiting\n");
 }
 
 static void hypermem_log_interrupt(int intno) {
-    if (!global_logstate || !global_logstate->logfile) return;
-
+    dbgprintf("interrupt %d\n", intno);
+    if (!global_logstate || !global_logstate->logfile) {
+	dbgprintf("interrupt ignored\n");
+	return;
+    }
+    
     if (intno >= sizeof(global_logstate->interrupts) * 8 ||
 	((1 << intno) & global_logstate->interrupts)) {
 	return;
@@ -858,7 +857,11 @@ static void hypermem_log_interrupt(int intno) {
 void hypermem_event(MonitorEvent event);
 
 void hypermem_event(MonitorEvent event) {
-    if (!global_logstate || !global_logstate->logfile) return;
+    dbgprintf("event %d\n", (int) event);
+    if (!global_logstate || !global_logstate->logfile) {
+	dbgprintf("event ignored\n");
+        return;
+    }
 
     switch (event) {
     case QEVENT_SHUTDOWN:
@@ -877,9 +880,7 @@ void hypermem_event(MonitorEvent event) {
 
 static void hypermem_register_types(void)
 {
-#ifdef HYPERMEM_DEBUG
-    printf("hypermem: registering type\n");
-#endif
+    dbgprintf("registering type\n");
     type_register_static(&hypermem_info);
     assert(!log_interrupt);
     log_interrupt = hypermem_log_interrupt;
