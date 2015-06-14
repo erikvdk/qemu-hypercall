@@ -674,6 +674,9 @@ static uint64_t hypermem_mem_read(void *opaque, hwaddr addr,
     printf("hypermem: read; addr=0x%lx, size=0x%x\n", (long) addr, size);
 #endif
 
+    /* ignore curses updates */
+    if (!current_cpu) return 0;
+
     /* find a pending operation that has these bytes available for reading */
     op = hypermem_find_pending_operation(state, 0, addr, size, &bytemask);
     if (!op) return 0;
@@ -711,6 +714,9 @@ static void hypermem_mem_write(void *opaque,
     printf("hypermem: write; addr=0x%lx, value=0x%lx, size=0x%lx\n",
 	(long) addr, (long) mem_value, (long) size);
 #endif
+
+    /* ignore curses updates */
+    if (!current_cpu) return;
 
     /* find a pending operation that has these bytes available for reading */
     op = hypermem_find_pending_operation(state, 1, addr, size, &bytemask);
