@@ -192,7 +192,7 @@ void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiConte
 
     dbgprintf("edfi_dump_stats_module_with_context: "
 	"name=%s msg=%s bb_num_executions_linaddr=0x%lx num_bbs=%d\n",
-	ec->name, msg, (long) ec->context.bb_num_executions_linaddr,
+	ec->name, msg, (long) ec->bb_num_executions_linaddr,
 	ec->context.num_bbs);
 
     if (!ec->bb_num_executions_linaddr) {

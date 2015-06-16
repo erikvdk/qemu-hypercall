@@ -172,7 +172,7 @@ static void hypermem_session_reset(HyperMemSessionState *session) {
     /* end the current command on the session (if any) and clean up
      * command state
      */
-    dbgprintf("hypermem_session_reset: command %ld\n", (long) value);
+    dbgprintf("hypermem_session_reset: command %ld\n", (long) session->command);
     for (i = 0; i < HYPEMEM_STR_COUNT_MAX; i++) {
 	if (!session->strdata[i]) continue;
 	free(session->strdata[i]);
