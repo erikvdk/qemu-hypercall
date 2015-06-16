@@ -9,9 +9,14 @@
 #define HYPERMEM_PRIO           3 /* 1 and 2 used by video memory */
 #define HYPERMEM_PENDING_MAX    HYPERMEM_ENTRIES
 
-
 #define TYPE_HYPERMEM           "hypermem"
 #define HYPERMEM(obj)           OBJECT_CHECK(HyperMemState, (obj), TYPE_HYPERMEM)
+
+#ifdef HYPERMEM_DEBUG
+#define dbgprintf(format, ...) fprintf(stderr, "hypermem debug: " format, ##__VA_ARGS__)
+#else
+#define dbgprintf(format, ...)
+#endif
 
 /*
  * Structure Declarations

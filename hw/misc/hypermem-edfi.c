@@ -17,6 +17,8 @@ HyperMemEdfiContext *edfi_context_create(HyperMemState *state, const char *name)
 {
     HyperMemEdfiContext *ec;
 
+    dbgprintf("edfi_context_create: name=%s\n", name);
+
     /* allocate structure */
     ec = CALLOC(1, HyperMemEdfiContext);
     if (!ec) return NULL;
@@ -69,12 +71,14 @@ void edfi_context_release(
 	HyperMemState *state,
 	uint32_t process_cr3)
 {
+    dbgprintf("edfi_context_release: cr3=0x%lx\n", (long) process_cr3);
     edfi_context_release_internal(state, process_cr3, 0);
 }
 
 void edfi_context_release_all(
 	HyperMemState *state)
 {
+    dbgprintf("edfi_context_release_all\n");
     edfi_context_release_internal(state, 0, 1);
 }
 
@@ -138,6 +142,8 @@ void edfi_context_set(
     }
     ec->cr3 = process_cr3;
     ec->cr4 = cr4;
+    dbgprintf("edfi_context_set: cr3=0x%lx cr4=0x%lx name=%s\n",
+	(long) process_cr3, (long) cr4, name);
 
     /* read EDFI context */
     if (!vaddr_to_laddr(state, contextptr, &contextptr_lin)) {
@@ -145,6 +151,8 @@ void edfi_context_set(
 	    "linear address module=%s\n", name);
 	return;
     }
+    dbgprintf("edfi_context_set: contextptr_lin=0x%lx\n",
+	(long) contextptr_lin);
     if (read_with_pagetable(state, ec->cr3, ec->cr4, contextptr_lin,
 	&ec->context, sizeof(ec->context)) != sizeof(ec->context)) {
         logprinterr(state, "warning: cannot read EDFI context module=%s\n", name);
@@ -152,6 +160,10 @@ void edfi_context_set(
     }
 
     /* verify canary */
+    dbgprintf("edfi_context_set: canary_value1=0x%x canary_value2=0x%x "
+	"bb_num_executions=0x%lx num_bbs=%d\n", ec->context.canary_value1,
+	ec->context.canary_value2, (long) ec->context.bb_num_executions,
+	ec->context.num_bbs);
     if (ec->context.canary_value1 != EDFI_CANARY_VALUE ||
         ec->context.canary_value2 != EDFI_CANARY_VALUE) {
         logprinterr(state, "warning: EDFI context canaries incorrect "
@@ -159,7 +171,7 @@ void edfi_context_set(
 	return;
     }
 
-    /* store linear addresse for bb_num_executions */
+    /* store linear addresses for bb_num_executions */
     if (!vaddr_to_laddr(state, (vaddr) ec->context.bb_num_executions,
         &ec->bb_num_executions_linaddr)) {
         logprinterr(state, "warning: cannot convert EDFI context "
@@ -167,6 +179,8 @@ void edfi_context_set(
         ec->bb_num_executions_linaddr = 0;
 	return;
     }
+    dbgprintf("edfi_context_set: bb_num_executions_linaddr=0x%lx\n",
+	(long) ec->bb_num_executions_linaddr);
 }
 
 void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiContext *ec, const char *msg)
@@ -175,6 +189,11 @@ void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiConte
     size_t bb_num_executions_count;
     size_t bb_num_executions_size;
     int i, repeats;
+
+    dbgprintf("edfi_dump_stats_module_with_context: "
+	"name=%s msg=%s bb_num_executions_linaddr=0x%lx num_bbs=%d\n",
+	ec->name, msg, (long) ec->context.bb_num_executions_linaddr,
+	ec->context.num_bbs);
 
     if (!ec->bb_num_executions_linaddr) {
         logprinterr(state, "warning: cannot dump EDFI context due to "
@@ -194,6 +213,10 @@ void edfi_dump_stats_module_with_context(HyperMemState *state, HyperMemEdfiConte
     }
 
     /* check canaries */
+    dbgprintf("edfi_dump_stats_module_with_context: "
+	"bb_num_executions={ 0x%llx, ..., 0x%llx }\n",
+	(long long) bb_num_executions[0],
+	(long long) bb_num_executions[ec->context.num_bbs + 1]);
     if (bb_num_executions[0] != EDFI_CANARY_VALUE ||
         bb_num_executions[ec->context.num_bbs + 1] != EDFI_CANARY_VALUE) {
         logprinterr(state, "warning: bb_num_executions canaries incorrect "

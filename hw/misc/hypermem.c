@@ -30,12 +30,6 @@
 
 #include "hypermem.h"
 
-#ifdef HYPERMEM_DEBUG
-#define dbgprintf(format, ...) fprintf(stderr, "hypermem debug: " format, ##__VA_ARGS__)
-#else
-#define dbgprintf(format, ...)
-#endif
-
 static struct logstate *global_logstate;
 
 static Property hypermem_props[] = {
@@ -178,6 +172,7 @@ static void hypermem_session_reset(HyperMemSessionState *session) {
     /* end the current command on the session (if any) and clean up
      * command state
      */
+    dbgprintf("hypermem_session_reset: command %ld\n", (long) value);
     for (i = 0; i < HYPEMEM_STR_COUNT_MAX; i++) {
 	if (!session->strdata[i]) continue;
 	free(session->strdata[i]);
@@ -514,6 +509,7 @@ static void handle_session_write(HyperMemState *state,
 	logprinterr(state, "warning: command not specified\n");
     } else {
 	session->command = value;
+	dbgprintf("handle_session_write: command %ld\n", (long) value);
 
 	/* command types that involve neither reads nor writes are
 	 * handled immediately
