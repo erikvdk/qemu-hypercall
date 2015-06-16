@@ -25,6 +25,7 @@ typedef struct {
 
 typedef struct {
     float fault_prob;
+    unsigned long fault_prob_randmax;
     int min_fdp_interval;
     int faulty_bb_index;
     unsigned int min_fault_time_interval;
