@@ -23,6 +23,7 @@
 #include <stdarg.h>
 #include <sys/types.h>
 #include "qapi/qmp/qdict.h"
+#include "glib-compat.h"
 
 typedef struct QTestState QTestState;
 
@@ -283,6 +284,17 @@ void qtest_memread(QTestState *s, uint64_t addr, void *data, size_t size);
 void qtest_memwrite(QTestState *s, uint64_t addr, const void *data, size_t size);
 
 /**
+ * qtest_memset:
+ * @s: #QTestState instance to operate on.
+ * @addr: Guest address to write to.
+ * @patt: Byte pattern to fill the guest memory region with.
+ * @size: Number of bytes to write.
+ *
+ * Write a pattern to guest memory.
+ */
+void qtest_memset(QTestState *s, uint64_t addr, uint8_t patt, size_t size);
+
+/**
  * qtest_clock_step_next:
  * @s: #QTestState instance to operate on.
  *
@@ -331,6 +343,38 @@ const char *qtest_get_arch(void);
  * returned by qtest_get_arch().
  */
 void qtest_add_func(const char *str, void (*fn));
+
+/**
+ * qtest_add_data_func:
+ * @str: Test case path.
+ * @data: Test case data
+ * @fn: Test case function
+ *
+ * Add a GTester testcase with the given name, data and function.
+ * The path is prefixed with the architecture under test, as
+ * returned by qtest_get_arch().
+ */
+void qtest_add_data_func(const char *str, const void *data, void (*fn));
+
+/**
+ * qtest_add:
+ * @testpath: Test case path
+ * @Fixture: Fixture type
+ * @tdata: Test case data
+ * @fsetup: Test case setup function
+ * @ftest: Test case function
+ * @fteardown: Test case teardown function
+ *
+ * Add a GTester testcase with the given name, data and functions.
+ * The path is prefixed with the architecture under test, as
+ * returned by qtest_get_arch().
+ */
+#define qtest_add(testpath, Fixture, tdata, fsetup, ftest, fteardown) \
+    do { \
+        char *path = g_strdup_printf("/%s/%s", qtest_get_arch(), testpath); \
+        g_test_add(path, Fixture, tdata, fsetup, ftest, fteardown); \
+        g_free(path); \
+    } while (0)
 
 /**
  * qtest_start:
@@ -621,6 +665,19 @@ static inline void memwrite(uint64_t addr, const void *data, size_t size)
 }
 
 /**
+ * qmemset:
+ * @addr: Guest address to write to.
+ * @patt: Byte pattern to fill the guest memory region with.
+ * @size: Number of bytes to write.
+ *
+ * Write a pattern to guest memory.
+ */
+static inline void qmemset(uint64_t addr, uint8_t patt, size_t size)
+{
+    qtest_memset(global_qtest, addr, patt, size);
+}
+
+/**
  * clock_step_next:
  *
  * Advance the QEMU_CLOCK_VIRTUAL to the next deadline.
@@ -657,5 +714,12 @@ static inline int64_t clock_set(int64_t val)
 {
     return qtest_clock_set(global_qtest, val);
 }
+
+/**
+ * qtest_big_endian:
+ *
+ * Returns: True if the architecture under test has a big endian configuration.
+ */
+bool qtest_big_endian(void);
 
 #endif
