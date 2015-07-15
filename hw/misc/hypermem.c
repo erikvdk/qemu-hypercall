@@ -22,8 +22,7 @@
 #include "qemu/config-file.h"
 #include "qemu/option.h"
 
-#include "helper.h"
-#include "exec/softmmu_exec.h"
+#include "qapi-event.h"
 #include "qmp-commands.h"
 
 #include <qemu/hypermem-api.h>
@@ -788,14 +787,13 @@ static void hypermem_realizefn(DeviceState *dev, Error **errp)
     qemu_opts_foreach(qemu_find_opts("drive"), log_drive_options, s, 0);
 
     /* reserve memory area */
-    dbgprintf("realize; HYPERMEM_BASEADDR=0x%lx, HYPERMEM_SIZE=0x%lx, "
-	"isa_mem_base=0x%lx\n", (long) HYPERMEM_BASEADDR, (long) HYPERMEM_SIZE,
-	(long) isa_mem_base);
+    dbgprintf("realize; HYPERMEM_BASEADDR=0x%lx, HYPERMEM_SIZE=0x%lx\n"
+	(long) HYPERMEM_BASEADDR, (long) HYPERMEM_SIZE);
     memory_region_init_io(&s->io, OBJECT(dev), &hypermem_mem_ops, s,
                           "hypermem-mem", HYPERMEM_SIZE);
     memory_region_set_flush_coalesced(&s->io);
     memory_region_add_subregion_overlap(isa_address_space(isadev),
-                                        isa_mem_base + HYPERMEM_BASEADDR,
+                                        HYPERMEM_BASEADDR,
                                         &s->io, HYPERMEM_PRIO);
     memory_region_set_coalescing(&s->io);
 }
@@ -851,9 +849,9 @@ static void hypermem_log_interrupt(int intno) {
     logprintf_internal(global_logstate, "Interrupt %d\n", intno);
 }
 
-void hypermem_event(MonitorEvent event);
+void hypermem_event(QAPIEvent event);
 
-void hypermem_event(MonitorEvent event) {
+void hypermem_event(QAPIEvent event) {
     dbgprintf("event %d\n", (int) event);
     if (!global_logstate || !global_logstate->logfile) {
 	dbgprintf("event ignored\n");
@@ -861,13 +859,13 @@ void hypermem_event(MonitorEvent event) {
     }
 
     switch (event) {
-    case QEVENT_SHUTDOWN:
+    case QAPI_EVENT_SHUTDOWN:
 	logprintf_internal(global_logstate, "QEMU shutdown\n");
 	break;
-    case QEVENT_RESET:
+    case QAPI_EVENT_RESET:
 	logprintf_internal(global_logstate, "QEMU reset\n");
 	break;
-    case QEVENT_POWERDOWN:
+    case QAPI_EVENT_POWERDOWN:
 	logprintf_internal(global_logstate, "QEMU powerdown\n");
 	break;
     default:

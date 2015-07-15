@@ -6,9 +6,6 @@
 #include "qemu/config-file.h"
 #include "qemu/option.h"
 
-#include "helper.h"
-#include "exec/softmmu_exec.h"
-
 #include <qemu/hypermem-api.h>
 
 #include "hypermem-edfi.h"
