@@ -190,15 +190,6 @@ static unsigned hypermem_session_allocate(HyperMemState *state)
     return 0;
 }
 
-static unsigned hypermem_session_from_address(hwaddr addr)
-{
-    unsigned session_id;
-
-    if (addr < HYPERMEM_BASEADDR) return 0;
-    session_id = (addr - HYPERMEM_BASEADDR) / sizeof(hypermem_entry_t);
-    return (session_id < HYPERMEM_ENTRIES) ? session_id : 0;
-}
-
 static hwaddr hypermem_session_get_address(unsigned session_id)
 {
     return session_id ? (HYPERMEM_BASEADDR + session_id * sizeof(hypermem_entry_t)) : 0;
@@ -253,7 +244,7 @@ static void command_write_string(HyperMemState *state,
 				int stateFirst,
 				int index) {
     assert(index >= 0);
-    assert(index < HYPEMEM_STR_COUNT_MAX);
+    assert(index < HYPERMEM_STR_COUNT_MAX);
     if (session->state < stateFirst) return;
     assert(session->state < stateFirst + 2);
 
@@ -575,7 +566,7 @@ static void handle_session_write(HyperMemState *state,
      * handled immediately
      */
     switch (session->command) {
-    case HYPERMEM_DISCONNECT:
+    case HYPERMEM_COMMAND_DISCONNECT:
 	dbgprintf("tearing down session\n");
 	hypermem_session_reset(session);
 	session->status = hss_closed;
@@ -596,6 +587,7 @@ static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
                                                    hwaddr addr)
 {
     hwaddr entry;
+    struct HyperMemSessionState *session;
     unsigned session_id;
     hypermem_entry_t value;
 
@@ -618,6 +610,7 @@ static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
     }
 
     /* other reads are in sessions */
+    session =  &state->sessions[entry];
     if (session->status != hss_connected) {
 	logprinterr(state, "warning: attempt to read "
 	        "in inactive session %u\n", (unsigned) entry);
@@ -625,7 +618,7 @@ static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
 	session->badrw_last = ++state->badrw_last;
 	return 0;
     }
-    value = handle_session_read(state, &state->sessions[entry]);
+    value = handle_session_read(state, session);
     dbgprintf("read_internal value 0x%lx\n", (long) value);
     return value;
 }
@@ -636,7 +629,6 @@ static void hypermem_mem_write_internal(HyperMemState *state,
 {
     hwaddr entry;
     struct HyperMemSessionState *session;
-    unsigned session_id;
 
     dbgprintf("write_internal; addr=0x%lx, value=0x%lx\n",
 	(long) addr, (long) mem_value);
