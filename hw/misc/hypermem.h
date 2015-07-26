@@ -27,10 +27,18 @@
  * since the protocol forced upon as has quite some restrictions
  */
 
-#define HYPEMEM_STR_COUNT_MAX 2
+#define HYPERMEM_STR_COUNT_MAX 2
+
+enum hypermem_session_status {
+	hss_closed,
+	hss_preconnect,
+	hss_connected,
+};
  
 typedef struct HyperMemSessionState {
-    int active;
+    uint64_t badrw_last;
+    uint64_t badrw_preconnect;
+    enum hypermem_session_status status;
     int command;
     int state;
 
@@ -54,7 +62,7 @@ typedef struct HyperMemSessionState {
     } command_state;
     hypermem_entry_t strlen;
     hypermem_entry_t strpos;
-    char *strdata[HYPEMEM_STR_COUNT_MAX];
+    char *strdata[HYPERMEM_STR_COUNT_MAX];
 
     /* the cr3 in case we need this to do page translation */
     uint32_t process_cr3;
@@ -99,7 +107,7 @@ typedef struct HyperMemState
     HyperMemMagicContext *magic_context;
 
     /* session state */
-    unsigned session_next;
+    uint64_t badrw_last;
     HyperMemSessionState sessions[HYPERMEM_ENTRIES];
 
     /* state for partial reads and writes */

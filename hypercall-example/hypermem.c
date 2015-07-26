@@ -63,13 +63,12 @@ int hypermem_connect(struct hypermem_session *session) {
 		return -1;
 	}
 
+	hypermem_write(session, HYPERMEM_COMMAND_CONNECT);
 	return 0;
 }
 
 void hypermem_disconnect(struct hypermem_session *session) {
-	hypermem_entry_t address = session->address;
-	session->address = HYPERMEM_BASEADDR;
-	hypermem_write(session, address);
+	hypermem_write(session, HYPERMEM_COMMAND_DISCONNECT);
 	if (close(session->mem_fd) < 0) {
 		perror("close failed");
 		exit(-1);

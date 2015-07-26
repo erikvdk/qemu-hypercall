@@ -125,28 +125,67 @@ static void swap_cr3(HyperMemSessionState *session) {
     session->process_cr3 = tmp;
 }
 
-static void hypermem_session_set_active(HyperMemSessionState *session)
+static void hypermem_session_set_active(
+	HyperMemState *state,
+	unsigned session_id)
 {
+    HyperMemSessionState *session;
+
+    assert(state);
+    assert(session_id > 0);
+    assert(session_id < HYPERMEM_ENTRIES);
+
+    session = &state->sessions[session_id];
     memset(session, 0, sizeof(HyperMemSessionState));
-    session->active = 1;
+    session->status = hss_preconnect;
+
+    /* assume the preconnect is bad until we get a connect command to prevent
+     * reusing the preconnect state session too early; when we get a connect
+     * command revert to the old bad R/W index
+     */
+    session->badrw_preconnect = session->badrw_last;
+    session->badrw_last = ++state->badrw_last;
+}
+
+static unsigned hypermem_session_allocate_with_status(
+	HyperMemState *state,
+	enum hypermem_session_status status)
+{
+    uint64_t badrw_selected = 0;
+    HyperMemSessionState *session;
+    unsigned session_id, session_selected = 0;
+
+    for (session_id = 1; session_id < HYPERMEM_ENTRIES; session_id++) {
+	session = &state->sessions[session_id];
+	if (session->status != status) continue;
+
+	/* select the session with the least recent rogue read/write */
+	if (!session_selected || session->badrw_last < badrw_selected) {
+		session_selected = session_id;
+	}
+    }
+
+    if (session_selected) {
+	hypermem_session_set_active(state, session_selected);
+    }
+    return session_selected;
 }
 
 static unsigned hypermem_session_allocate(HyperMemState *state)
 {
     unsigned session_id;
-    unsigned session_next = state->session_next;
-    unsigned session_max = session_next + HYPERMEM_ENTRIES;
 
-    while (session_next < session_max) {
-	session_id = session_next % HYPERMEM_ENTRIES;
-	if (session_id != 0 && !state->sessions[session_id].active) {
-	    hypermem_session_set_active(&state->sessions[session_id]);
-	    state->session_next = session_id + 1;
-	    return session_id;
-	}
-	session_next++;
-    }
+    /* first try to find a closed session */
+    session_id = hypermem_session_allocate_with_status(state, hss_closed);
+    if (session_id) return session_id;
 
+    /* if there is none, reclaim a preconnected session (needed in case of
+     * rogue reads from the base address)
+     */
+    session_id = hypermem_session_allocate_with_status(state, hss_preconnect);
+    if (session_id) return session_id;
+
+    /* no free sessions */
     logprinterr(state, "warning: sessions exhausted\n");
     return 0;
 }
@@ -172,7 +211,7 @@ static void hypermem_session_reset(HyperMemSessionState *session) {
      * command state
      */
     dbgprintf("hypermem_session_reset: command %ld\n", (long) session->command);
-    for (i = 0; i < HYPEMEM_STR_COUNT_MAX; i++) {
+    for (i = 0; i < HYPERMEM_STR_COUNT_MAX; i++) {
 	if (!session->strdata[i]) continue;
 	free(session->strdata[i]);
 	session->strdata[i] = NULL;
@@ -192,6 +231,8 @@ static hypermem_entry_t command_bad_read(HyperMemState *state,
     logprinterr(state, "warning: unexpected read during command %d\n",
             session->command);
     hypermem_session_reset(session);
+    session->status = hss_closed;
+    session->badrw_last = ++state->badrw_last;
     return 0;
 }
 
@@ -202,6 +243,8 @@ static void command_bad_write(HyperMemState *state,
     logprinterr(state, "warning: unexpected write during command %d "
             "(value=0x%llx)\n", session->command, (long long) value);
     hypermem_session_reset(session);
+    session->status = hss_closed;
+    session->badrw_last = ++state->badrw_last;
 }
 
 static void command_write_string(HyperMemState *state,
@@ -466,19 +509,33 @@ static hypermem_entry_t handle_session_read(HyperMemState *state,
      * command type
      */
     switch (session->command) {
-    case 0: break;
     case HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET: return command_edfi_faultindex_get_read(state, session);
     case HYPERMEM_COMMAND_NOP: return command_nop_read(state, session);
     default: return command_bad_read(state, session);
     }
+}
 
-    if (session->command) {
-	logprinterr(state, "warning: read for invalid command %d\n",
-	        session->command);
-    } else {
-	logprinterr(state, "warning: read before selecting command\n");
-    }
-    return 0;
+static int is_valid_command(hypermem_entry_t value) {
+	switch (value) {
+	case HYPERMEM_COMMAND_DISCONNECT:
+	case HYPERMEM_COMMAND_NOP:
+	case HYPERMEM_COMMAND_FAULT:
+	case HYPERMEM_COMMAND_EDFI_CONTEXT_SET:
+	case HYPERMEM_COMMAND_PRINT:
+	case HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET:
+	case HYPERMEM_COMMAND_EDFI_DUMP_STATS:
+	case HYPERMEM_COMMAND_EDFI_DUMP_STATS_MODULE:
+	case HYPERMEM_COMMAND_SET_CR3:
+	case HYPERMEM_COMMAND_MAGIC_CONTEXT_SET:
+	case HYPERMEM_COMMAND_MAGIC_ST:
+	case HYPERMEM_COMMAND_MAGIC_ST_ALL:
+	case HYPERMEM_COMMAND_QUIT:
+	case HYPERMEM_COMMAND_RELEASE_CR3:
+		return 1;
+	case HYPERMEM_COMMAND_CONNECT: /* not allowed in connected sessions */
+	default:
+		return 0;
+	}
 }
 
 static void handle_session_write(HyperMemState *state,
@@ -501,29 +558,37 @@ static void handle_session_write(HyperMemState *state,
     case HYPERMEM_COMMAND_SET_CR3: command_set_cr3(state, session, value); return;
     case HYPERMEM_COMMAND_MAGIC_CONTEXT_SET: command_magic_context_set_write(state, session, value); return;
     case HYPERMEM_COMMAND_MAGIC_ST: command_magic_st_module(state, session, value); return;
-    default: command_bad_write(state, session, value); return;
+    default: return command_bad_write(state, session, value);
     }
 
-    if (!value) {
-	logprinterr(state, "warning: command not specified\n");
-    } else {
-	session->command = value;
-	dbgprintf("handle_session_write: command %ld\n", (long) value);
+    if (!is_valid_command(value)) {
+	logprinterr(state, "warning: incorrect command 0x%lx\n", (long) value);
+	session->status = hss_closed;
+	session->badrw_last = ++state->badrw_last;
+	return;
+    }
 
-	/* command types that involve neither reads nor writes are
-	 * handled immediately
-	 */
-	switch (session->command) {
-	case HYPERMEM_COMMAND_MAGIC_ST_ALL:
-	    magic_do_st_all(state);
-	    hypermem_session_reset(session);
-	    break;
-	case HYPERMEM_COMMAND_QUIT:
-            logprintf(state, "quitting QEMU\n");
-	    qmp_quit(NULL);
-	    hypermem_session_reset(session); /* QEMU should be gone here, but just in case */
-	    break;
-	}
+    session->command = value;
+    dbgprintf("handle_session_write: command 0x%lx\n", (long) value);
+
+    /* command types that involve neither reads nor writes are
+     * handled immediately
+     */
+    switch (session->command) {
+    case HYPERMEM_DISCONNECT:
+	dbgprintf("tearing down session\n");
+	hypermem_session_reset(session);
+	session->status = hss_closed;
+	break;
+    case HYPERMEM_COMMAND_MAGIC_ST_ALL:
+	magic_do_st_all(state);
+	hypermem_session_reset(session);
+	break;
+    case HYPERMEM_COMMAND_QUIT:
+	logprintf(state, "quitting QEMU\n");
+	qmp_quit(NULL);
+	hypermem_session_reset(session); /* QEMU should be gone here, but just in case */
+	break;
     }
 }
 
@@ -553,9 +618,11 @@ static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
     }
 
     /* other reads are in sessions */
-    if (!state->sessions[entry].active) {
+    if (session->status != hss_connected) {
 	logprinterr(state, "warning: attempt to read "
 	        "in inactive session %u\n", (unsigned) entry);
+	session->status = hss_closed;
+	session->badrw_last = ++state->badrw_last;
 	return 0;
     }
     value = handle_session_read(state, &state->sessions[entry]);
@@ -568,6 +635,7 @@ static void hypermem_mem_write_internal(HyperMemState *state,
                                         hypermem_entry_t mem_value)
 {
     hwaddr entry;
+    struct HyperMemSessionState *session;
     unsigned session_id;
 
     dbgprintf("write_internal; addr=0x%lx, value=0x%lx\n",
@@ -575,40 +643,30 @@ static void hypermem_mem_write_internal(HyperMemState *state,
 
     /* verify address */
     entry = addr / sizeof(hypermem_entry_t);
-    if (entry >= HYPERMEM_ENTRIES) {
+    if (entry <= 0 || entry >= HYPERMEM_ENTRIES) {
 	logprinterr(state, "error: write to invalid address 0x%lx\n",
 	        (long) addr);
 	return;
     }
 
-    /* writes to base tear down sessions */
-    if (entry == 0) {
-        session_id = hypermem_session_from_address(mem_value);
-	if (!session_id) {
-	    logprinterr(state, "warning: attempt to tear down session "
-	            "for invalid address 0x%lx\n", (long) mem_value);
-	    return;
-	}
-	if (!state->sessions[session_id].active) {
-	    logprinterr(state, "warning: attempt to tear down inactive "
-	            "session %u for address 0x%lx\n",
-		    session_id, (long) mem_value);
-	    return;
-	}
-	dbgprintf("tearing down session %u at 0x%lx\n",
-	       session_id, (long) mem_value);
-	hypermem_session_reset(&state->sessions[session_id]);
-	state->sessions[session_id].active = 0;
+    /* handle connect command */
+    session = &state->sessions[entry];
+    if (session->status == hss_preconnect &&
+	mem_value == HYPERMEM_COMMAND_CONNECT) {
+	session->status = hss_connected;
+	session->badrw_last = session->badrw_preconnect;
 	return;
     }
 
-    /* other writes are in sessions */
-    if (!state->sessions[entry].active) {
+    /* writes in sessions */
+    if (session->status != hss_connected) {
 	logprinterr(state, "warning: attempt to write in inactive "
 	        "session %u\n", (unsigned) entry);
+	session->status = hss_closed;
+	session->badrw_last = ++state->badrw_last;
 	return;
     }
-    handle_session_write(state, &state->sessions[entry], mem_value);
+    handle_session_write(state, session, mem_value);
 }
 
 #define HYPERMEM_ENTRY_BYTES ((1 << sizeof(hypermem_entry_t)) - 1)

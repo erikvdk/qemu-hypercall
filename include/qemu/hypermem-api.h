@@ -13,11 +13,17 @@
  * - further communication within the session proceeds by reads and writes of
  *   hypermem_entry_t-sized values to/from the communication address
  * - each command starts by writing a command identifier to the communication
- *   address and the remainder of the sequence of operations is determinied
+ *   address and the remainder of the sequence of operations is determined
  *   by the protocol specified for that command type
  * - after a command has been completed the session process take another command
- * - the session is ended by writing the communication address
- *   to HYPERMEM_BASEADDR
+ * - the first command issued over a connection is HYPERMEM_COMMAND_CONNECT
+ * - the final command issued over a connection is HYPERMEM_COMMAND_DISCONNECT
+ *
+ * hypermem protocol - connect
+ * - write command identifier HYPERMEM_COMMAND_CONNECT
+ *
+ * hypermem protocol - disconnect
+ * - write command identifier HYPERMEM_COMMAND_DISCONNECT
  *
  * hypermem protocol - edfi context set
  * - write command identifier HYPERMEM_COMMAND_EDFI_CONTEXT_SET
@@ -100,21 +106,25 @@ typedef uint32_t hypermem_entry_t;
  * note: more than 256 bytes risks a race condition if reads are not atomic 
  */
 #define HYPERMEM_BASEADDR	0xb7000
-#define HYPERMEM_SIZE		0x00100 
+#define HYPERMEM_SIZE		0x00100
 
-#define HYPERMEM_COMMAND_NOP			1
-#define HYPERMEM_COMMAND_FAULT			2
-#define HYPERMEM_COMMAND_EDFI_CONTEXT_SET	3
-#define HYPERMEM_COMMAND_PRINT			4
-#define HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET	5
-#define HYPERMEM_COMMAND_EDFI_DUMP_STATS	6
-#define HYPERMEM_COMMAND_EDFI_DUMP_STATS_MODULE	7
-#define HYPERMEM_COMMAND_SET_CR3		8
-#define HYPERMEM_COMMAND_MAGIC_CONTEXT_SET	9
-#define HYPERMEM_COMMAND_MAGIC_ST		10
-#define HYPERMEM_COMMAND_MAGIC_ST_ALL		11
-#define HYPERMEM_COMMAND_QUIT			12
-#define HYPERMEM_COMMAND_RELEASE_CR3		13
+#define HYPERMEM_COMMANDMAGIC 0x773e35dd
+
+#define HYPERMEM_COMMAND_CONNECT		(HYPERMEM_COMMANDMAGIC ^  1)
+#define HYPERMEM_COMMAND_DISCONNECT		(HYPERMEM_COMMANDMAGIC ^  2)
+#define HYPERMEM_COMMAND_NOP			(HYPERMEM_COMMANDMAGIC ^  3)
+#define HYPERMEM_COMMAND_FAULT			(HYPERMEM_COMMANDMAGIC ^  4)
+#define HYPERMEM_COMMAND_EDFI_CONTEXT_SET	(HYPERMEM_COMMANDMAGIC ^  5)
+#define HYPERMEM_COMMAND_PRINT			(HYPERMEM_COMMANDMAGIC ^  6)
+#define HYPERMEM_COMMAND_EDFI_FAULTINDEX_GET	(HYPERMEM_COMMANDMAGIC ^  7)
+#define HYPERMEM_COMMAND_EDFI_DUMP_STATS	(HYPERMEM_COMMANDMAGIC ^  8)
+#define HYPERMEM_COMMAND_EDFI_DUMP_STATS_MODULE	(HYPERMEM_COMMANDMAGIC ^  9)
+#define HYPERMEM_COMMAND_SET_CR3		(HYPERMEM_COMMANDMAGIC ^ 10)
+#define HYPERMEM_COMMAND_MAGIC_CONTEXT_SET	(HYPERMEM_COMMANDMAGIC ^ 11)
+#define HYPERMEM_COMMAND_MAGIC_ST		(HYPERMEM_COMMANDMAGIC ^ 12)
+#define HYPERMEM_COMMAND_MAGIC_ST_ALL		(HYPERMEM_COMMANDMAGIC ^ 13)
+#define HYPERMEM_COMMAND_QUIT			(HYPERMEM_COMMANDMAGIC ^ 14)
+#define HYPERMEM_COMMAND_RELEASE_CR3		(HYPERMEM_COMMANDMAGIC ^ 15)
 
 #define HYPERCALL_NOP_REPLY	0x4e6f7021
 
