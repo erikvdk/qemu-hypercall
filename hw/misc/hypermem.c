@@ -71,19 +71,15 @@ static void rw_log_dump(void) {
 
 	for (index = rw_log_count - count; index < rw_log_count; index++) {
 		entry = &rw_log[index % DEBUG_RW_LOG_ENTRIES];
-		fprintf(stderr, "wl[%5zd]: IP=%.4lx:%.8lx %c@%.8lx s=%ld",
+		fprintf(stderr, "wl[%5zd]: IP=%.4lx:%.8lx %c@%.8lx s=%ld v=%.*llx\n",
 			index,
 			(long) entry->segsel,
 			(long) entry->eip,
 			entry->is_write ? 'w' : 'r',
 			(long) entry->addr,
-			(long) entry->size);
-		if (entry->is_write && entry->size > 0) {
-			fprintf(stderr, " v=%.*llx",
-				2 * (int) ((entry->size <= 8) ? entry->size : 8),
-				(long long) entry->value);
-		}
-		fprintf(stderr, "\n");
+			(long) entry->size,
+			2 * (int) ((entry->size <= 8) ? entry->size : 8),
+			(long long) entry->value);
 	}
 	fflush(stderr);
 }
@@ -813,11 +809,13 @@ static uint64_t hypermem_mem_read(void *opaque, hwaddr addr,
 	dbgprintf("read ignored\n");
 	return 0;
     }
-    rw_log_add(addr, 0, size, 0);
 
     /* find a pending operation that has these bytes available for reading */
     op = hypermem_find_pending_operation(state, 0, addr, size, &bytemask);
-    if (!op) return 0;
+    if (!op) {
+	rw_log_add(addr, 0, size, 0);
+	return 0;
+    }
 
     /* perform a real read if we don't have the necessary bytes */
     if (!op->bytemask) {
@@ -834,6 +832,7 @@ static uint64_t hypermem_mem_read(void *opaque, hwaddr addr,
     op->bytemask &= ~bytemask;
 
     dbgprintf("read value 0x%llx\n", (long long) value);
+    rw_log_add(addr, 0, size, value);
     return value;
 }
 
