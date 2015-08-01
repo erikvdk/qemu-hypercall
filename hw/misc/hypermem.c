@@ -54,7 +54,7 @@ static void rw_log_add(
 	struct rw_log_entry *entry = &rw_log[rw_log_count++ % DEBUG_RW_LOG_ENTRIES];
 
 	memset(entry, 0, sizeof(*entry));
-	entry->value = value;
+	entry->value = mem_value;
 	entry->addr = addr;
 	entry->eip = cpu->env.eip;
 	entry->segsel = cpu->env.segs[R_CS].selector;
@@ -62,7 +62,7 @@ static void rw_log_add(
 	entry->is_write = is_write;
 }
 
-static void rw_log_dump() {
+static void rw_log_dump(void) {
 	size_t count = rw_log_count;
 	const struct rw_log_entry *entry;
 	size_t index;
