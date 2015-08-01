@@ -234,6 +234,7 @@ static unsigned hypermem_session_allocate_with_status(
 
 static unsigned hypermem_session_allocate(HyperMemState *state)
 {
+    static int errct;
     unsigned session_id;
 
     /* first try to find a closed session */
@@ -247,7 +248,10 @@ static unsigned hypermem_session_allocate(HyperMemState *state)
     if (session_id) return session_id;
 
     /* no free sessions */
-    logprinterr(state, "warning: sessions exhausted\n");
+    if (errct++ < 16) {
+	logprinterr(state, "warning: sessions exhausted\n");
+	rw_log_dump();
+    }
     return 0;
 }
 
@@ -280,9 +284,12 @@ static void hypermem_session_reset(HyperMemSessionState *session) {
 static hypermem_entry_t command_bad_read(HyperMemState *state,
                                          HyperMemSessionState *session)
 {
-    logprinterr(state, "warning: unexpected read during command %d\n",
+    static int errct;
+    if (errct++ < 16) {
+	logprinterr(state, "warning: unexpected read during command %d\n",
             session->command);
-    rw_log_dump();
+	rw_log_dump();
+    }
     hypermem_session_reset(session);
     session->status = hss_closed;
     session->badrw_last = ++state->badrw_last;
@@ -293,9 +300,12 @@ static void command_bad_write(HyperMemState *state,
                               HyperMemSessionState *session,
                               hypermem_entry_t value)
 {
-    logprinterr(state, "warning: unexpected write during command %d "
+    static int errct;
+    if (errct++ < 16) {
+	logprinterr(state, "warning: unexpected write during command %d "
             "(value=0x%llx)\n", session->command, (long long) value);
-    rw_log_dump();
+	rw_log_dump();
+    }
     hypermem_session_reset(session);
     session->status = hss_closed;
     session->badrw_last = ++state->badrw_last;
@@ -596,6 +606,8 @@ static void handle_session_write(HyperMemState *state,
                                  HyperMemSessionState *session,
                                  hypermem_entry_t value)
 {
+    static int errct;
+
     /* handle a write operation within a session according to the current
      * command type; if there is no current command, the value written is
      * the command identifier
@@ -616,8 +628,10 @@ static void handle_session_write(HyperMemState *state,
     }
 
     if (!is_valid_command(value)) {
-	logprinterr(state, "warning: incorrect command 0x%lx\n", (long) value);
-	rw_log_dump();
+	if (errct++ < 16) {
+	    logprinterr(state, "warning: incorrect command 0x%lx\n", (long) value);
+	    rw_log_dump();
+	}
 	session->status = hss_closed;
 	session->badrw_last = ++state->badrw_last;
 	return;
@@ -650,6 +664,7 @@ static void handle_session_write(HyperMemState *state,
 static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
                                                    hwaddr addr)
 {
+    static int errct1, errct2;
     hwaddr entry;
     struct HyperMemSessionState *session;
     unsigned session_id;
@@ -660,8 +675,10 @@ static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
     /* verify address */
     entry = addr / sizeof(hypermem_entry_t);
     if (entry >= HYPERMEM_ENTRIES) {
-	logprinterr(state, "error: read from invalid address 0x%lx\n",
+	if (errct1++ < 16) {
+	    logprinterr(state, "error: read from invalid address 0x%lx\n",
 	        (long) addr);
+	}
 	return 0;
     }
 
@@ -676,9 +693,11 @@ static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
     /* other reads are in sessions */
     session =  &state->sessions[entry];
     if (session->status != hss_connected) {
-	logprinterr(state, "warning: attempt to read "
+	if (errct2++ < 16) {
+	    logprinterr(state, "warning: attempt to read "
 	        "in inactive session %u\n", (unsigned) entry);
-	rw_log_dump();
+	    rw_log_dump();
+	}
 	session->status = hss_closed;
 	session->badrw_last = ++state->badrw_last;
 	return 0;
@@ -692,6 +711,7 @@ static void hypermem_mem_write_internal(HyperMemState *state,
                                         hwaddr addr,
                                         hypermem_entry_t mem_value)
 {
+    static int errct1, errct2;
     hwaddr entry;
     struct HyperMemSessionState *session;
 
@@ -701,8 +721,10 @@ static void hypermem_mem_write_internal(HyperMemState *state,
     /* verify address */
     entry = addr / sizeof(hypermem_entry_t);
     if (entry <= 0 || entry >= HYPERMEM_ENTRIES) {
-	logprinterr(state, "error: write to invalid address 0x%lx\n",
+	if (errct1++ < 16) {
+	    logprinterr(state, "error: write to invalid address 0x%lx\n",
 	        (long) addr);
+	}
 	return;
     }
 
@@ -717,9 +739,11 @@ static void hypermem_mem_write_internal(HyperMemState *state,
 
     /* writes in sessions */
     if (session->status != hss_connected) {
-	logprinterr(state, "warning: attempt to write in inactive "
+	if (errct2++ < 16) {
+	    logprinterr(state, "warning: attempt to write in inactive "
 	        "session %u\n", (unsigned) entry);
-	rw_log_dump();
+	    rw_log_dump();
+	}
 	session->status = hss_closed;
 	session->badrw_last = ++state->badrw_last;
 	return;
@@ -732,6 +756,7 @@ static void hypermem_mem_write_internal(HyperMemState *state,
 static HyperMemPendingOperation *hypermem_find_pending_operation(
     HyperMemState *state, int is_write, hwaddr addr, unsigned size,
     unsigned *bytemask) {
+    static int errct;
     hwaddr baseaddr = addr - addr % sizeof(hypermem_entry_t);
     int i;
     HyperMemPendingOperation *op, *opempty = NULL;
@@ -758,8 +783,11 @@ static HyperMemPendingOperation *hypermem_find_pending_operation(
 
     /* no entries available is an error (it means the VM is misbehaving) */
     if (!opempty) {
-	logprinterr(state, "warning: %s, too many pending operations\n",
-	    is_write ? "write ignored" : "read failed");
+	if (errct++ < 16) {
+	    logprinterr(state, "warning: %s, too many pending operations\n",
+		is_write ? "write ignored" : "read failed");
+	    rw_log_dump();
+	}
 	return NULL;
     }
 
