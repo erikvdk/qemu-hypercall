@@ -832,7 +832,7 @@ static uint64_t hypermem_mem_read(void *opaque, hwaddr addr,
     op->bytemask &= ~bytemask;
 
     dbgprintf("read value 0x%llx\n", (long long) value);
-    rw_log_add(addr, 0, size, value);
+    rw_log_add(addr, value, size, 0);
     return value;
 }
 
