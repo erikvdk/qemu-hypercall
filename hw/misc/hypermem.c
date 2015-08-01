@@ -694,7 +694,6 @@ static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
 	        "in inactive session %u\n", (unsigned) entry);
 	    rw_log_dump();
 	}
-	session->status = hss_closed;
 	session->badrw_last = ++state->badrw_last;
 	return 0;
     }
