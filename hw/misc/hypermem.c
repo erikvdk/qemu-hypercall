@@ -13,6 +13,8 @@
  *            such that the first basic block has bbindex=1
  */
 
+#define DEBUG_RW_LOG 1
+ 
 #include "hw/hw.h"
 #include "hw/isa/isa.h"
 #include "hw/i386/pc.h"
@@ -30,6 +32,65 @@
 #include "hypermem.h"
 
 static struct logstate *global_logstate;
+
+#if DEBUG_RW_LOG
+#define DEBUG_RW_LOG_ENTRIES 64
+static struct rw_log_entry {
+        uint64_t value;
+	hwaddr addr;
+	target_ulong eip;
+	uint32_t segsel;
+        uint32_t size;
+	unsigned char is_write;
+} rw_log[DEBUG_RW_LOG_ENTRIES];
+static size_t rw_log_count;
+
+static void rw_log_add(
+	hwaddr addr,
+	uint64_t mem_value,
+	uint32_t size,
+	unsigned char is_write) {
+	X86CPU *cpu = X86_CPU(current_cpu);
+	struct rw_log_entry *entry = &rw_log[rw_log_count++ % DEBUG_RW_LOG_ENTRIES];
+
+	memset(entry, 0, sizeof(*entry));
+	entry->value = value;
+	entry->addr = addr;
+	entry->eip = cpu->env.eip;
+	entry->segsel = cpu->env.segs[R_CS].selector;
+	entry->size = size;
+	entry->is_write = is_write;
+}
+
+static void rw_log_dump() {
+	size_t count = rw_log_count;
+	const struct rw_log_entry *entry;
+	size_t index;
+
+	if (count > DEBUG_RW_LOG_ENTRIES) count = DEBUG_RW_LOG_ENTRIES;
+
+	for (index = rw_log_count - count; index < rw_log_count; index++) {
+		entry = &rw_log[index % DEBUG_RW_LOG_ENTRIES];
+		fprintf(stderr, "wl[%5zd]: IP=%.4lx:%.8lx %c@%.8lx s=%ld",
+			index,
+			(long) entry->segsel,
+			(long) entry->eip,
+			entry->is_write ? 'w' : 'r',
+			(long) entry->addr,
+			(long) entry->size);
+		if (entry->is_write && entry->size > 0) {
+			fprintf(stderr, " v=%.*llx",
+				2 * (int) ((entry->size <= 8) ? entry->size : 8),
+				(long long) entry->value);
+		}
+		fprintf(stderr, "\n");
+	}
+	fflush(stderr);
+}
+#else
+#define rw_log_add(addr, mem_value, size, is_write)
+#define rw_log_dump()
+#endif
 
 static Property hypermem_props[] = {
     DEFINE_PROP_STRING("logpath", HyperMemState, logpath),
@@ -221,6 +282,7 @@ static hypermem_entry_t command_bad_read(HyperMemState *state,
 {
     logprinterr(state, "warning: unexpected read during command %d\n",
             session->command);
+    rw_log_dump();
     hypermem_session_reset(session);
     session->status = hss_closed;
     session->badrw_last = ++state->badrw_last;
@@ -233,6 +295,7 @@ static void command_bad_write(HyperMemState *state,
 {
     logprinterr(state, "warning: unexpected write during command %d "
             "(value=0x%llx)\n", session->command, (long long) value);
+    rw_log_dump();
     hypermem_session_reset(session);
     session->status = hss_closed;
     session->badrw_last = ++state->badrw_last;
@@ -554,6 +617,7 @@ static void handle_session_write(HyperMemState *state,
 
     if (!is_valid_command(value)) {
 	logprinterr(state, "warning: incorrect command 0x%lx\n", (long) value);
+	rw_log_dump();
 	session->status = hss_closed;
 	session->badrw_last = ++state->badrw_last;
 	return;
@@ -614,6 +678,7 @@ static hypermem_entry_t hypermem_mem_read_internal(HyperMemState *state,
     if (session->status != hss_connected) {
 	logprinterr(state, "warning: attempt to read "
 	        "in inactive session %u\n", (unsigned) entry);
+	rw_log_dump();
 	session->status = hss_closed;
 	session->badrw_last = ++state->badrw_last;
 	return 0;
@@ -654,6 +719,7 @@ static void hypermem_mem_write_internal(HyperMemState *state,
     if (session->status != hss_connected) {
 	logprinterr(state, "warning: attempt to write in inactive "
 	        "session %u\n", (unsigned) entry);
+	rw_log_dump();
 	session->status = hss_closed;
 	session->badrw_last = ++state->badrw_last;
 	return;
@@ -719,6 +785,7 @@ static uint64_t hypermem_mem_read(void *opaque, hwaddr addr,
 	dbgprintf("read ignored\n");
 	return 0;
     }
+    rw_log_add(addr, 0, size, 0);
 
     /* find a pending operation that has these bytes available for reading */
     op = hypermem_find_pending_operation(state, 0, addr, size, &bytemask);
@@ -759,6 +826,7 @@ static void hypermem_mem_write(void *opaque,
 	dbgprintf("write ignored\n");
 	return;
     }
+    rw_log_add(addr, mem_value, size, 1);
 
     /* find a pending operation that has these bytes available for reading */
     op = hypermem_find_pending_operation(state, 1, addr, size, &bytemask);
