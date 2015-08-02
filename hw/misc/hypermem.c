@@ -13,7 +13,7 @@
  *            such that the first basic block has bbindex=1
  */
 
-#define DEBUG_RW_LOG 1
+#define DEBUG_RW_LOG 0
  
 #include "hw/hw.h"
 #include "hw/isa/isa.h"
