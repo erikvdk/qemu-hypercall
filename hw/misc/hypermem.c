@@ -995,7 +995,9 @@ static void hypermem_log_interrupt(int intno) {
 }
 
 void hypermem_event(QAPIEvent event);
+void hypermem_termsig(int signo);
 
+/* called from monitor_qapi_event_emit */
 void hypermem_event(QAPIEvent event) {
     dbgprintf("event %d\n", (int) event);
     if (!global_logstate || !global_logstate->logfile) {
@@ -1016,6 +1018,16 @@ void hypermem_event(QAPIEvent event) {
     default:
 	break;
     }
+}
+
+/* called from qemu_kill_report */
+void hypermem_termsig(int signo) {
+    dbgprintf("signal %d\n", (int) event);
+    if (!global_logstate || !global_logstate->logfile) {
+	dbgprintf("signal ignored\n");
+        return;
+    }
+    logprintf_internal(global_logstate, "QEMU signal %d\n", signo);
 }
 
 static void hypermem_register_types(void)
