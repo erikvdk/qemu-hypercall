@@ -932,7 +932,7 @@ static void hypermem_realizefn(DeviceState *dev, Error **errp)
     qemu_opts_foreach(qemu_find_opts("drive"), log_drive_options, s, 0);
 
     /* reserve memory area */
-    dbgprintf("realize; HYPERMEM_BASEADDR=0x%lx, HYPERMEM_SIZE=0x%lx\n"
+    dbgprintf("realize; HYPERMEM_BASEADDR=0x%lx, HYPERMEM_SIZE=0x%lx\n",
 	(long) HYPERMEM_BASEADDR, (long) HYPERMEM_SIZE);
     memory_region_init_io(&s->io, OBJECT(dev), &hypermem_mem_ops, s,
                           "hypermem-mem", HYPERMEM_SIZE);
@@ -1022,7 +1022,7 @@ void hypermem_event(QAPIEvent event) {
 
 /* called from qemu_kill_report */
 void hypermem_termsig(int signo) {
-    dbgprintf("signal %d\n", (int) event);
+    dbgprintf("signal %d\n", (int) signo);
     if (!global_logstate || !global_logstate->logfile) {
 	dbgprintf("signal ignored\n");
         return;
