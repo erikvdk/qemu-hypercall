@@ -936,11 +936,9 @@ static void hypermem_realizefn(DeviceState *dev, Error **errp)
 	(long) HYPERMEM_BASEADDR, (long) HYPERMEM_SIZE);
     memory_region_init_io(&s->io, OBJECT(dev), &hypermem_mem_ops, s,
                           "hypermem-mem", HYPERMEM_SIZE);
-    memory_region_set_flush_coalesced(&s->io);
     memory_region_add_subregion_overlap(isa_address_space(isadev),
                                         HYPERMEM_BASEADDR,
                                         &s->io, HYPERMEM_PRIO);
-    memory_region_set_coalescing(&s->io);
 }
 
 static void hypermem_reset(DeviceState *dev) {
